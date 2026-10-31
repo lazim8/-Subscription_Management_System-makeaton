@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Reports{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Financial Reports & ARR Analytics</h1>
+    <div class="page-subtitle">Executive summary of recurring revenue run-rate, collections, and cadence distributions</div>
+  </div>
+  <a href="{% url 'billing:reports-export' %}" class="btn btn-secondary">
+    <i class="bi bi-download me-1"></i> Export Financial CSV
+  </a>
+</div>
+
+{# Executive Stat Grid #}
+<div class="stat-grid mb-4">
+  <div class="stat-card">
+    <div class="stat-label">Annual Run-Rate (ARR)</div>
+    <div class="stat-value" style="color: var(--accent-primary);">${{ total_arr|floatformat:2 }}</div>
+    <div class="stat-helper">Annualized recurring run-rate</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Monthly Recurring (MRR)</div>
+    <div class="stat-value">${{ total_mrr|floatformat:2 }}</div>
+    <div class="stat-helper">{{ active_count }} active contract{{ active_count|pluralize }}</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Total Invoiced</div>
+    <div class="stat-value">${{ total_invoiced|floatformat:2 }}</div>
+    <div class="stat-helper">Gross billed receivables</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Total Collected</div>
+    <div class="stat-value text-success">${{ total_collected|floatformat:2 }}</div>
+    <div class="stat-helper">Settled into bank accounts</div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  {# Revenue by Plan Cadence #}
+  <div class="col-lg-7">
+    <div class="card-surface h-100">
+      <h2 class="fs-6 fw-bold mb-3">Revenue by Billing Cadence</h2>
+      <div class="table-container">
+        <table class="table-minimal">
+          <thead>
+            <tr>
+              <th>Cadence</th>
+              <th class="text-right">Active Subscriptions</th>
+              <th class="text-right">Normalized MRR</th>
+              <th class="text-right">Annualized (ARR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in cadence_stats %}
+              <tr>
+                <td style="font-weight: 500;">{{ c.label }}</td>
+                <td class="text-right">{{ c.count }}</td>
+                <td class="text-right" style="font-weight: 600;">${{ c.mrr|floatformat:2 }}</td>
+                <td class="text-right text-muted">${% widthratio c.mrr 1 12 %}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center py-3 text-muted">No subscriptions recorded.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Receivables Health Distribution #}
+  <div class="col-lg-5">
+    <div class="card-surface h-100">
+      <h2 class="fs-6 fw-bold mb-3">Portfolio Cashflow Health</h2>
+
+      <div class="mb-3 p-3 rounded" style="background: #F9FAFB;">
+        <div class="d-flex justify-content-between mb-1" style="font-size: 13px;">
+          <span class="text-muted">Total Collections Rate</span>
+          <span class="fw-bold text-success">
+            {% if total_invoiced > 0 %}
+              {% widthratio total_collected total_invoiced 100 %}%
+            {% else %}
+              100%
+            {% endif %}
+          </span>
+        </div>
+        <div class="progress" style="height: 6px;">
+          <div class="progress-bar bg-success" style="width: {% if total_invoiced > 0 %}{% widthratio total_collected total_invoiced 100 %}{% else %}100{% endif %}%;"></div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between py-2 border-bottom" style="font-size: 14px;">
+        <span class="text-muted">Collected Cash:</span>
+        <span class="fw-bold text-success">${{ total_collected|floatformat:2 }}</span>
+      </div>
+
+      <div class="d-flex justify-content-between py-2 border-bottom" style="font-size: 14px;">
+        <span class="text-muted">Outstanding Receivables:</span>
+        <span class="fw-bold text-danger">${{ total_outstanding|floatformat:2 }}</span>
+      </div>
+
+      <div class="mt-4">
+        <a href="{% url 'billing:reports-export' %}" class="btn btn-secondary w-100 btn-sm">
+          <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Auditor CSV
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

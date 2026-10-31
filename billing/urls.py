@@ -1,5 +1,4 @@
 from django.urls import path
-from django.http import HttpResponse
 from .views import (
     SubscriptionListView,
     SubscriptionDetailView,
@@ -17,14 +16,16 @@ from .views import (
     InvoicePaymentRecordView,
     PaymentListView,
     OverdueInvoicesListView,
+    DashboardView,
+    CustomerPortalSubscriptionsView,
+    CustomerToggleAddonView,
+    CustomerPortalInvoicesView,
+    CustomerPayInvoiceView,
+    ReportsView,
+    ReportsExportCSVView,
 )
 
 app_name = 'billing'
-
-def placeholder_future(request):
-    return HttpResponse("Module coming in next steps")
-
-placeholder_billing = placeholder_future
 
 urlpatterns = [
     # Subscriptions & Quotation Conversion
@@ -51,8 +52,13 @@ urlpatterns = [
     # Payments Ledger
     path('payments/', PaymentListView.as_view(), name='payment-list'),
 
-    # Stubs for Reports and Customer Portal (Step 5)
-    path('reports/', placeholder_future, name='reports'),
-    path('portal/subscriptions/', placeholder_future, name='customer-portal-subscriptions'),
-    path('portal/invoices/', placeholder_future, name='customer-portal-invoices'),
+    # Customer Self-Service Portal
+    path('portal/subscriptions/', CustomerPortalSubscriptionsView.as_view(), name='customer-portal-subscriptions'),
+    path('portal/addons/toggle/', CustomerToggleAddonView.as_view(), name='customer-toggle-addon'),
+    path('portal/invoices/', CustomerPortalInvoicesView.as_view(), name='customer-portal-invoices'),
+    path('portal/invoices/pay/', CustomerPayInvoiceView.as_view(), name='customer-pay-invoice'),
+
+    # Executive Reports (Admin Only)
+    path('reports/', ReportsView.as_view(), name='reports'),
+    path('reports/export/', ReportsExportCSVView.as_view(), name='reports-export'),
 ]

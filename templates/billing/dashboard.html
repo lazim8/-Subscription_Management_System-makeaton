@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Operations Dashboard</h1>
+    <div class="page-subtitle">Real-time subscription metrics, recurring run-rate, and receivables</div>
+  </div>
+  <div class="d-flex gap-2">
+    <form action="{% url 'billing:automated-billing-run' %}" method="post" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-lightning-charge me-1"></i> Run Automated Billing
+      </button>
+    </form>
+  </div>
+</div>
+
+{# 1. Four Stat Cards #}
+<div class="stat-grid mb-4">
+  <div class="stat-card">
+    <div class="stat-label">Active Subscriptions</div>
+    <div class="stat-value">{{ active_count }}</div>
+    <div class="stat-helper">Live recurring accounts</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Monthly Recurring Revenue</div>
+    <div class="stat-value">${{ total_mrr|floatformat:2 }}</div>
+    <div class="stat-helper">Normalized run-rate (MRR)</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Revenue Collected</div>
+    <div class="stat-value text-success">${{ total_collected|floatformat:2 }}</div>
+    <div class="stat-helper">All settled customer payments</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Overdue Receivables</div>
+    <div class="stat-value {% if overdue_amount > 0 %}text-danger{% endif %}">${{ overdue_amount|floatformat:2 }}</div>
+    <div class="stat-helper">{{ overdue_count }} invoice{{ overdue_count|pluralize }} past due terms</div>
+  </div>
+</div>
+
+{# 2. Chart.js Monthly Revenue Bar/Line Chart #}
+<div class="card-surface mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="fs-6 fw-bold mb-0">Rolling Revenue Trend</h2>
+      <div class="text-muted" style="font-size: 13px;">Monthly collections across all customer accounts</div>
+    </div>
+    <span class="badge-status badge-gray" style="font-size: 12px;">Past 6 Months</span>
+  </div>
+  <div style="height: 260px; position: relative;">
+    <canvas id="revenueChart"></canvas>
+  </div>
+</div>
+
+{# 3. Overdue Invoices Table #}
+<div class="card-surface">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="fs-6 fw-bold mb-0">Overdue Invoices</h2>
+      <div class="text-muted" style="font-size: 13px;">Invoices past payment terms requiring follow-up</div>
+    </div>
+    <a href="{% url 'billing:overdue-list' %}" class="btn btn-secondary btn-sm" style="font-size: 12px;">
+      View All in Chasing Center &rarr;
+    </a>
+  </div>
+
+  <div class="table-container">
+    <table class="table-minimal">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Customer</th>
+          <th>Due Date</th>
+          <th>Aging Category</th>
+          <th class="text-right">Balance Due</th>
+          <th class="text-right">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in overdue_invoices %}
+          <tr>
+            <td>
+              <a href="{% url 'billing:invoice-detail' inv.id %}" style="font-weight: 600;">
+                {{ inv.invoice_number }}
+              </a>
+            </td>
+            <td>
+              <div style="font-weight: 500;">{{ inv.customer.company_name|default:inv.customer.get_full_name|default:inv.customer.email }}</div>
+            </td>
+            <td style="font-size: 13px;" class="text-danger fw-semibold">
+              {{ inv.due_date|date:"M d, Y" }}
+            </td>
+            <td>
+              <span class="badge-status badge-red">
+                {{ inv.aging_bucket }} ({{ inv.days_overdue }}d)
+              </span>
+            </td>
+            <td class="text-right" style="font-weight: 700; color: #DC2626;">
+              ${{ inv.balance_due|floatformat:2 }}
+            </td>
+            <td class="text-right">
+              <a href="{% url 'billing:invoice-detail' inv.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+                View
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">
+              <i class="bi bi-check-circle text-success fs-5 me-1"></i> No overdue invoices! All payments are current.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Chart.js revenue trend visualization in theme accent color #4F46E5
+  const ctx = document.getElementById('revenueChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: {{ chart_labels|safe }},
+      datasets: [{
+        label: 'Collected Revenue ($)',
+        data: {{ chart_data|safe }},
+        backgroundColor: '#4F46E5',
+        borderRadius: 6,
+        barPercentage: 0.45,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return ' $' + context.raw.toLocaleString(undefined, {minimumFractionDigits: 2});
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', size: 12 } }
+        },
+        y: {
+          border: { dash: [4, 4] },
+          grid: { color: '#F3F4F6' },
+          ticks: {
+            font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', size: 12 },
+            callback: function(value) { return '$' + value.toLocaleString(); }
+          }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

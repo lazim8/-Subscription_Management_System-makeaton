@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}My Invoices{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">My Invoices & Receipts</h1>
+    <div class="page-subtitle">View and settle your recurring billing invoices online</div>
+  </div>
+</div>
+
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Issue Date</th>
+        <th>Due Date</th>
+        <th class="text-right">Total ($)</th>
+        <th class="text-right">Balance Due</th>
+        <th>Status</th>
+        <th class="text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td>
+            <a href="{% url 'billing:invoice-detail' inv.id %}" style="font-weight: 600;">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td style="font-size: 13px;">{{ inv.issue_date|date:"M d, Y" }}</td>
+          <td style="font-size: 13px;">
+            {{ inv.due_date|date:"M d, Y" }}
+            {% if inv.is_overdue %}
+              <span class="text-danger fw-bold ms-1" style="font-size: 11px;">(Overdue)</span>
+            {% endif %}
+          </td>
+          <td class="text-right" style="font-weight: 600;">
+            ${{ inv.total_amount|floatformat:2 }}
+          </td>
+          <td class="text-right" style="font-weight: 600; color: {% if inv.balance_due == 0 %}#059669{% else %}#DC2626{% endif %};">
+            ${{ inv.balance_due|floatformat:2 }}
+          </td>
+          <td>
+            {% if inv.is_overdue %}
+              <span class="badge-status badge-red">Overdue</span>
+            {% else %}
+              {% include "components/status_badge.html" with status=inv.status %}
+            {% endif %}
+          </td>
+          <td class="text-right">
+            {% if inv.balance_due > 0 and inv.status == 'confirmed' %}
+              <form action="{% url 'billing:customer-pay-invoice' %}" method="post" class="d-inline" onsubmit="return confirm('Confirm payment of ${{ inv.balance_due|floatformat:2 }} via default card?');">
+                {% csrf_token %}
+                <input type="hidden" name="invoice_id" value="{{ inv.id }}">
+                <button type="submit" class="btn btn-primary btn-sm" style="font-size: 12px; padding: 4px 12px;">
+                  <i class="bi bi-credit-card me-1"></i> Pay ${{ inv.balance_due|floatformat:0 }}
+                </button>
+              </form>
+            {% else %}
+              <a href="{% url 'billing:invoice-detail' inv.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+                View Receipt
+              </a>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state py-4 text-center">
+              <p class="mb-0 text-muted">No invoices generated for your account yet.</p>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
