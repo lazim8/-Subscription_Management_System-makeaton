@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Plan{% else %}New Plan{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">{% if object %}Edit Plan: {{ object.name }}{% else %}Launch New Billing Plan{% endif %}</h1>
+    <div class="page-subtitle">Configure billing cadence, pricing tier, and subscription closure rules</div>
+  </div>
+  <a href="{% url 'catalog:plan-list' %}" class="btn btn-secondary">Back to Plans</a>
+</div>
+
+<div class="form-card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger mb-3" style="font-size: 13px; border-radius: var(--radius-base);">
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label for="id_name" class="form-label">Plan Name <span style="color: #DC2626;">*</span></label>
+      {{ form.name }}
+      {% if form.name.errors %}
+        <div class="form-error">{{ form.name.errors.0 }}</div>
+      {% endif %}
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 form-group">
+        <label for="id_price" class="form-label">Recurring Price ($) <span style="color: #DC2626;">*</span></label>
+        {{ form.price }}
+        {% if form.price.errors %}
+          <div class="form-error">{{ form.price.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6 form-group">
+        <label for="id_billing_period" class="form-label">Billing Cadence <span style="color: #DC2626;">*</span></label>
+        {{ form.billing_period }}
+        {% if form.billing_period.errors %}
+          <div class="form-error">{{ form.billing_period.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 form-group">
+        <label for="id_min_quantity" class="form-label">Min Quantity</label>
+        {{ form.min_quantity }}
+      </div>
+      <div class="col-md-4 form-group">
+        <label for="id_available_from" class="form-label">Available From <span style="color: #DC2626;">*</span></label>
+        {{ form.available_from }}
+      </div>
+      <div class="col-md-4 form-group">
+        <label for="id_available_to" class="form-label">Available Until</label>
+        {{ form.available_to }}
+      </div>
+    </div>
+
+    {# Lifecycle Policy Checkboxes #}
+    <div class="card-surface p-3 mt-2 mb-3" style="background-color: #F9FAFB;">
+      <div class="form-label fw-bold mb-2">Subscription Lifecycle & Closure Rules</div>
+      <div class="row g-2">
+        <div class="col-sm-6">
+          <div class="form-check">
+            {{ form.auto_close }}
+            <label for="id_auto_close" class="form-check-label ms-1" style="font-size: 13px;">Auto-close on end date</label>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <div class="form-check">
+            {{ form.closable }}
+            <label for="id_closable" class="form-check-label ms-1" style="font-size: 13px;">Allow early closure</label>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <div class="form-check">
+            {{ form.pausable }}
+            <label for="id_pausable" class="form-check-label ms-1" style="font-size: 13px;">Allow customer/staff pause</label>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <div class="form-check">
+            {{ form.renewable }}
+            <label for="id_renewable" class="form-check-label ms-1" style="font-size: 13px;">Allow renewal</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-check mb-4">
+      {{ form.is_active }}
+      <label for="id_is_active" class="form-check-label ms-1" style="font-size: 14px;">Active (available for new signups and quotations)</label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Plan</button>
+      <a href="{% url 'catalog:plan-list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

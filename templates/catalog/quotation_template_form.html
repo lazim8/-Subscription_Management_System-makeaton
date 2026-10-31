@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Create Quotation Template{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">New Quotation Template</h1>
+    <div class="page-subtitle">Assemble a reusable offer package with a plan and preset product lines</div>
+  </div>
+  <a href="{% url 'catalog:quotation-template-list' %}" class="btn btn-secondary">Back to Templates</a>
+</div>
+
+<form method="post" id="templateForm" novalidate>
+  {% csrf_token %}
+
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card-surface">
+        <h2 class="fs-6 fw-bold mb-3">1. General Information</h2>
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3" style="font-size: 13px; border-radius: var(--radius-base);">
+            {% for error in form.non_field_errors %}
+              <div>{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="id_name" class="form-label">Template Name <span style="color: #DC2626;">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}
+            <div class="form-error">{{ form.name.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="id_plan" class="form-label">Default Billing Plan <span style="color: #DC2626;">*</span></label>
+          {{ form.plan }}
+          {% if form.plan.errors %}
+            <div class="form-error">{{ form.plan.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="id_validity_days" class="form-label">Quote Validity (Days) <span style="color: #DC2626;">*</span></label>
+          {{ form.validity_days }}
+          {% if form.validity_days.errors %}
+            <div class="form-error">{{ form.validity_days.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="id_description" class="form-label">Package Description</label>
+          {{ form.description }}
+        </div>
+      </div>
+    </div>
+
+    {# Right Column: Preset Product Lines #}
+    <div class="col-lg-7">
+      <div class="card-surface">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h2 class="fs-6 fw-bold mb-0">2. Bundled Product Lines</h2>
+            <div class="text-muted" style="font-size: 13px;">Add products that will pre-fill on quotes generated from this template</div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="addLineBtn">
+            <i class="bi bi-plus-lg me-1"></i> Add Line
+          </button>
+        </div>
+
+        <div class="table-container mb-4">
+          <table class="table-minimal" id="linesTable">
+            <thead>
+              <tr>
+                <th>Product & Variant</th>
+                <th style="width: 100px;">Qty</th>
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody id="linesBody">
+              <tr class="line-row">
+                <td>
+                  <select name="product_id" class="form-select form-select-sm mb-1 product-selector" required>
+                    <option value="">Select a Product...</option>
+                    {% for p in products %}
+                      <option value="{{ p.id }}">{{ p.name }} (${{ p.sales_price }})</option>
+                    {% endfor %}
+                  </select>
+                  <select name="variant_id" class="form-select form-select-sm variant-selector">
+                    <option value="">Standard (No Variant)</option>
+                    {% for p in products %}
+                      {% for v in p.variants.all %}
+                        <option value="{{ v.id }}" data-product="{{ p.id }}">{{ p.name }} — {{ v.attribute }}: {{ v.value }} (+${{ v.extra_price }})</option>
+                      {% endfor %}
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <input type="number" name="quantity" class="form-control form-control-sm" value="1" min="1" required>
+                </td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-link text-danger p-0 remove-line-btn" title="Remove row">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Create Quotation Template</button>
+          <a href="{% url 'catalog:quotation-template-list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Add dynamic line row
+  document.getElementById('addLineBtn').addEventListener('click', () => {
+    const tbody = document.getElementById('linesBody');
+    const firstRow = tbody.querySelector('.line-row');
+    if (firstRow) {
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('select[name="product_id"]').value = "";
+      clone.querySelector('select[name="variant_id"]').value = "";
+      clone.querySelector('input[name="quantity"]').value = "1";
+      tbody.appendChild(clone);
+    }
+  });
+
+  // Remove line row
+  document.getElementById('linesBody').addEventListener('click', (e) => {
+    if (e.target.closest('.remove-line-btn')) {
+      const rows = document.querySelectorAll('.line-row');
+      if (rows.length > 1) {
+        e.target.closest('.line-row').remove();
+      }
+    }
+  });
+</script>
+{% endblock %}

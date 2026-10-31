@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Product{% else %}New Product{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">{% if object %}Edit Product: {{ object.name }}{% else %}Add New Product{% endif %}</h1>
+    <div class="page-subtitle">Define product type, base sales price, and internal cost</div>
+  </div>
+  <a href="{% url 'catalog:product-list' %}" class="btn btn-secondary">Back to Catalog</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="form-card" style="max-width: 600px;">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3" style="font-size: 13px; border-radius: var(--radius-base);">
+            {% for error in form.non_field_errors %}
+              <div>{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="id_name" class="form-label">Product Name <span style="color: #DC2626;">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}
+            <div class="form-error">{{ form.name.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 form-group">
+            <label for="id_product_type" class="form-label">Product Type <span style="color: #DC2626;">*</span></label>
+            {{ form.product_type }}
+            {% if form.product_type.errors %}
+              <div class="form-error">{{ form.product_type.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-6 form-group">
+            <label for="id_sales_price" class="form-label">Sales Price ($) <span style="color: #DC2626;">*</span></label>
+            {{ form.sales_price }}
+            {% if form.sales_price.errors %}
+              <div class="form-error">{{ form.sales_price.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 form-group">
+            <label for="id_cost_price" class="form-label">Cost Price ($)</label>
+            {{ form.cost_price }}
+            {% if form.cost_price.errors %}
+              <div class="form-error">{{ form.cost_price.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-6 form-group d-flex align-items-center pt-4">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label for="id_is_active" class="form-check-label ms-1" style="font-size: 14px;">Active for Quotations</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="id_notes" class="form-label">Notes & Technical Description</label>
+          {{ form.notes }}
+          {% if form.notes.errors %}
+            <div class="form-error">{{ form.notes.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save Product</button>
+          <a href="{% url 'catalog:product-list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# Variants Column (if editing existing product) #}
+  {% if object %}
+  <div class="col-lg-5">
+    <div class="card-surface">
+      <h2 class="fs-6 fw-bold mb-1">Product Variants & Price Adjustments</h2>
+      <p class="text-muted mb-3" style="font-size: 13px;">
+        Offer brand or edition variants (e.g. choosing the <strong>Odoo</strong> brand adds +$560 to base price).
+      </p>
+
+      {% if variants %}
+        <div class="table-container mb-3">
+          <table class="table-minimal">
+            <thead>
+              <tr>
+                <th>Dimension</th>
+                <th>Option</th>
+                <th class="text-right">Extra ($)</th>
+                <th class="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in variants %}
+                <tr>
+                  <td>{{ v.attribute }}</td>
+                  <td style="font-weight: 500;">{{ v.value }}</td>
+                  <td class="text-right">+${{ v.extra_price|floatformat:2 }}</td>
+                  <td class="text-right">
+                    <form action="{% url 'catalog:product-variant-delete' v.id %}" method="post" class="d-inline" onsubmit="return confirm('Remove variant?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-link text-danger p-0" title="Delete variant" style="font-size: 12px;">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state py-3 mb-3">
+          <p class="mb-0" style="font-size: 13px;">No variants configured for this product.</p>
+        </div>
+      {% endif %}
+
+      {# Add Variant Form #}
+      <h3 class="fs-6 fw-bold mb-2">Add Variant</h3>
+      <form action="{% url 'catalog:product-variant-add' object.id %}" method="post">
+        {% csrf_token %}
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <input type="text" name="attribute" class="form-control form-control-sm" placeholder="Attribute (e.g. Brand)" required value="Brand">
+          </div>
+          <div class="col-6">
+            <input type="text" name="value" class="form-control form-control-sm" placeholder="Value (e.g. Odoo)" required>
+          </div>
+        </div>
+        <div class="row g-2 align-items-center mb-3">
+          <div class="col-8">
+            <input type="number" step="0.01" name="extra_price" class="form-control form-control-sm" placeholder="Price Addition (e.g. 560.00)" required>
+          </div>
+          <div class="col-4">
+            <div class="form-check">
+              <input type="checkbox" name="is_active" class="form-check-input" id="v_active" checked>
+              <label for="v_active" class="form-check-label" style="font-size: 12px;">Active</label>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm w-100">Add Variant</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

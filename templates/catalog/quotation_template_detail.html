@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Quotation Template: {{ template.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">{{ template.name }}</h1>
+    <div class="page-subtitle">Package Blueprint & Bundled Lines</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'billing:subscription-list' %}?template_id={{ template.id }}" class="btn btn-primary">
+      <i class="bi bi-file-earmark-plus me-1"></i> Generate Quotation
+    </a>
+    <a href="{% url 'catalog:quotation-template-list' %}" class="btn btn-secondary">Back to Templates</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card-surface">
+      <h2 class="fs-6 fw-bold mb-3">Template Summary</h2>
+
+      <div class="mb-3">
+        <div class="text-muted" style="font-size: 12px; text-transform: uppercase;">Billing Plan</div>
+        <div class="fw-bold" style="font-size: 15px;">{{ template.plan.name }}</div>
+        <div class="text-muted" style="font-size: 13px;">${{ template.plan.price }} / {{ template.plan.get_billing_period_display }}</div>
+      </div>
+
+      <div class="mb-3">
+        <div class="text-muted" style="font-size: 12px; text-transform: uppercase;">Quote Validity</div>
+        <div class="fw-bold" style="font-size: 15px;">{{ template.validity_days }} days</div>
+      </div>
+
+      {% if template.description %}
+      <div class="mb-3">
+        <div class="text-muted" style="font-size: 12px; text-transform: uppercase;">Description</div>
+        <div style="font-size: 14px;">{{ template.description }}</div>
+      </div>
+      {% endif %}
+
+      <div>
+        <div class="text-muted" style="font-size: 12px; text-transform: uppercase;">Created On</div>
+        <div style="font-size: 13px;">{{ template.created_at|date:"M d, Y" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="table-container">
+      <table class="table-minimal">
+        <thead>
+          <tr>
+            <th>Bundled Product</th>
+            <th>Variant Dimension</th>
+            <th class="text-right">Quantity</th>
+            <th class="text-right">Unit Price</th>
+            <th class="text-right">Line Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in template.lines.all %}
+            <tr>
+              <td>
+                <div style="font-weight: 600;">{{ line.product.name }}</div>
+                <div class="text-muted" style="font-size: 12px;">{{ line.product.get_product_type_display }}</div>
+              </td>
+              <td>
+                {% if line.variant %}
+                  <span class="badge-status badge-amber">{{ line.variant.attribute }}: {{ line.variant.value }} (+${{ line.variant.extra_price|floatformat:0 }})</span>
+                {% else %}
+                  <span class="text-muted" style="font-size: 13px;">Standard</span>
+                {% endif %}
+              </td>
+              <td class="text-right">{{ line.quantity }}</td>
+              <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
+              <td class="text-right" style="font-weight: 600;">
+                ${% widthratio line.quantity 1 line.unit_price %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center py-4 text-muted">No line items attached to this template.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Billing Plans{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Billing Plans</h1>
+    <div class="page-subtitle">Define recurring billing intervals, pricing tiers, and subscription closure policies</div>
+  </div>
+  {% if request.user.role == 'admin' %}
+    <a href="{% url 'catalog:plan-create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i> New Plan
+    </a>
+  {% endif %}
+</div>
+
+{# Catalog Navigation Tabs #}
+<div class="d-flex gap-3 mb-4 border-bottom pb-2">
+  <a href="{% url 'catalog:product-list' %}" class="text-muted text-decoration-none pb-2">
+    Products & Variants
+  </a>
+  <a href="{% url 'catalog:plan-list' %}" class="fw-bold text-decoration-none border-bottom border-2 pb-2" style="border-color: var(--accent-primary) !important; color: var(--accent-primary);">
+    Billing Plans
+  </a>
+  <a href="{% url 'catalog:quotation-template-list' %}" class="text-muted text-decoration-none pb-2">
+    Quotation Templates
+  </a>
+</div>
+
+{# Filter Row #}
+<div class="table-filters-row">
+  <form method="get" class="d-flex gap-2 align-items-center w-100">
+    <div class="search-input-box">
+      <i class="bi bi-search"></i>
+      <input type="text" name="q" class="form-control" placeholder="Search plans..." value="{{ request.GET.q }}">
+    </div>
+    <select name="period" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
+      <option value="">All Cadences</option>
+      {% for period_val, period_label in billing_periods %}
+        <option value="{{ period_val }}" {% if request.GET.period == period_val %}selected{% endif %}>{{ period_label }}</option>
+      {% endfor %}
+    </select>
+    {% if request.GET.q or request.GET.period %}
+      <a href="{% url 'catalog:plan-list' %}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Plans Table #}
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Plan Name</th>
+        <th class="text-right">Price</th>
+        <th>Cadence</th>
+        <th>Min Qty</th>
+        <th>Availability</th>
+        <th>Lifecycle Policy</th>
+        <th>Status</th>
+        {% if request.user.role == 'admin' %}
+          <th class="text-right">Actions</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for plan in plans %}
+        <tr>
+          <td>
+            <div style="font-weight: 600;">{{ plan.name }}</div>
+          </td>
+          <td class="text-right" style="font-weight: 600;">
+            ${{ plan.price|floatformat:2 }}
+          </td>
+          <td>
+            <span class="badge-status badge-gray">{{ plan.get_billing_period_display }}</span>
+          </td>
+          <td>{{ plan.min_quantity }}</td>
+          <td>
+            <div style="font-size: 13px;">From {{ plan.available_from|date:"M d, Y" }}</div>
+            {% if plan.available_to %}
+              <div class="text-muted" style="font-size: 12px;">Until {{ plan.available_to|date:"M d, Y" }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              {% if plan.auto_close %}
+                <span class="badge-status badge-red" title="Auto closes on expiration date" style="font-size: 11px;">Auto-Close</span>
+              {% endif %}
+              {% if plan.closable %}
+                <span class="badge-status badge-gray" title="Can be closed early" style="font-size: 11px;">Closable</span>
+              {% endif %}
+              {% if plan.pausable %}
+                <span class="badge-status badge-amber" title="Can be paused" style="font-size: 11px;">Pausable</span>
+              {% endif %}
+              {% if plan.renewable %}
+                <span class="badge-status badge-green" title="Can be renewed" style="font-size: 11px;">Renewable</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            {% if plan.is_active %}
+              {% include "components/status_badge.html" with status="active" %}
+            {% else %}
+              {% include "components/status_badge.html" with status="closed" %}
+            {% endif %}
+          </td>
+          {% if request.user.role == 'admin' %}
+            <td class="text-right">
+              <a href="{% url 'catalog:plan-edit' plan.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+                Edit
+              </a>
+            </td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <p>No billing plans found.</p>
+              {% if request.user.role == 'admin' %}
+                <a href="{% url 'catalog:plan-create' %}" class="btn btn-primary btn-sm">Launch First Plan</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

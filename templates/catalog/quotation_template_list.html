@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Quotation Templates{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Quotation Templates</h1>
+    <div class="page-subtitle">Pre-configured offer blueprints with preset plans and bundled product lines for sales reps</div>
+  </div>
+  <a href="{% url 'catalog:quotation-template-create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i> New Template
+  </a>
+</div>
+
+{# Catalog Navigation Tabs #}
+<div class="d-flex gap-3 mb-4 border-bottom pb-2">
+  <a href="{% url 'catalog:product-list' %}" class="text-muted text-decoration-none pb-2">
+    Products & Variants
+  </a>
+  <a href="{% url 'catalog:plan-list' %}" class="text-muted text-decoration-none pb-2">
+    Billing Plans
+  </a>
+  <a href="{% url 'catalog:quotation-template-list' %}" class="fw-bold text-decoration-none border-bottom border-2 pb-2" style="border-color: var(--accent-primary) !important; color: var(--accent-primary);">
+    Quotation Templates
+  </a>
+</div>
+
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Template Title</th>
+        <th>Associated Plan</th>
+        <th>Validity Period</th>
+        <th>Bundled Lines</th>
+        <th class="text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for template in templates %}
+        <tr>
+          <td>
+            <div style="font-weight: 600;">{{ template.name }}</div>
+            {% if template.description %}
+              <div class="text-muted" style="font-size: 12px;">{{ template.description|truncatechars:70 }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge-status badge-gray">{{ template.plan.name }} (${{ template.plan.price }}/{{ template.plan.get_billing_period_display }})</span>
+          </td>
+          <td>{{ template.validity_days }} days</td>
+          <td>
+            <span class="badge-status badge-amber">{{ template.lines.count }} items</span>
+          </td>
+          <td class="text-right">
+            <a href="{% url 'catalog:quotation-template-detail' template.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+              View Package
+            </a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5">
+            <div class="empty-state">
+              <p>No quotation templates configured yet.</p>
+              <a href="{% url 'catalog:quotation-template-create' %}" class="btn btn-primary btn-sm">Create First Template</a>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

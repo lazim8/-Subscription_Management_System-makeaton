@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Products & Plans{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Products & Catalog</h1>
+    <div class="page-subtitle">Configure software packages, add-ons, and pricing variants</div>
+  </div>
+  {% if request.user.role == 'admin' %}
+    <a href="{% url 'catalog:product-create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i> Add Product
+    </a>
+  {% endif %}
+</div>
+
+{# Catalog Navigation Tabs #}
+<div class="d-flex gap-3 mb-4 border-bottom pb-2">
+  <a href="{% url 'catalog:product-list' %}" class="fw-bold text-decoration-none border-bottom border-2 pb-2" style="border-color: var(--accent-primary) !important; color: var(--accent-primary);">
+    Products & Variants
+  </a>
+  <a href="{% url 'catalog:plan-list' %}" class="text-muted text-decoration-none pb-2">
+    Billing Plans
+  </a>
+  <a href="{% url 'catalog:quotation-template-list' %}" class="text-muted text-decoration-none pb-2">
+    Quotation Templates
+  </a>
+</div>
+
+{# Filter Row #}
+<div class="table-filters-row">
+  <form method="get" class="d-flex gap-2 align-items-center w-100">
+    <div class="search-input-box">
+      <i class="bi bi-search"></i>
+      <input type="text" name="q" class="form-control" placeholder="Search products..." value="{{ request.GET.q }}">
+    </div>
+    <select name="type" class="form-select" style="max-width: 200px;" onchange="this.form.submit()">
+      <option value="">All Types</option>
+      {% for type_val, type_label in product_types %}
+        <option value="{{ type_val }}" {% if request.GET.type == type_val %}selected{% endif %}>{{ type_label }}</option>
+      {% endfor %}
+    </select>
+    {% if request.GET.q or request.GET.type %}
+      <a href="{% url 'catalog:product-list' %}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Products Table #}
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Product Name</th>
+        <th>Type</th>
+        <th class="text-right">Sales Price</th>
+        <th class="text-right">Cost Price</th>
+        <th>Variants (Adjustments)</th>
+        <th>Status</th>
+        {% if request.user.role == 'admin' %}
+          <th class="text-right">Actions</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+        <tr>
+          <td>
+            <div style="font-weight: 600;">{{ product.name }}</div>
+            {% if product.notes %}
+              <div class="text-muted" style="font-size: 12px;">{{ product.notes|truncatechars:60 }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge-status badge-gray">{{ product.get_product_type_display }}</span>
+          </td>
+          <td class="text-right" style="font-weight: 600;">
+            ${{ product.sales_price|floatformat:2 }}
+          </td>
+          <td class="text-right text-muted">
+            ${{ product.cost_price|floatformat:2 }}
+          </td>
+          <td>
+            {% if product.variants.all %}
+              <div class="d-flex flex-wrap gap-1">
+                {% for v in product.variants.all %}
+                  <span class="badge-status badge-amber" style="font-size: 11px;">
+                    {{ v.attribute }}: {{ v.value }} (+${{ v.extra_price|floatformat:0 }})
+                  </span>
+                {% endfor %}
+              </div>
+            {% else %}
+              <span class="text-muted" style="font-size: 13px;">No variants</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if product.is_active %}
+              {% include "components/status_badge.html" with status="active" %}
+            {% else %}
+              {% include "components/status_badge.html" with status="closed" %}
+            {% endif %}
+          </td>
+          {% if request.user.role == 'admin' %}
+            <td class="text-right">
+              <a href="{% url 'catalog:product-edit' product.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+                Edit
+              </a>
+            </td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state">
+              <p>No products found in catalog.</p>
+              {% if request.user.role == 'admin' %}
+                <a href="{% url 'catalog:product-create' %}" class="btn btn-primary btn-sm">Add First Product</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}
