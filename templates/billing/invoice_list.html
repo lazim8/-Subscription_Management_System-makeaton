@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Invoices{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Invoices & Recurring Billing</h1>
+    <div class="page-subtitle">Itemized invoices generated automatically from customer subscriptions</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'billing:overdue-list' %}" class="btn btn-secondary">
+      <i class="bi bi-exclamation-triangle me-1"></i> Overdue Center
+      {% if overdue_count > 0 %}
+        <span class="badge bg-danger ms-1">{{ overdue_count }}</span>
+      {% endif %}
+    </a>
+    <form action="{% url 'billing:automated-billing-run' %}" method="post" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary" onclick="return confirm('Run automated billing engine for all due subscriptions?');">
+        <i class="bi bi-lightning-charge me-1"></i> Run Automated Billing
+      </button>
+    </form>
+  </div>
+</div>
+
+{# Quick Receivables Stats #}
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="stat-label">Outstanding Unpaid</div>
+      <div class="stat-value fs-4">${{ total_unpaid|floatformat:2 }}</div>
+      <div class="stat-helper">Confirmed & awaiting payment</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="stat-label">Overdue Invoices</div>
+      <div class="stat-value fs-4 {% if overdue_count > 0 %}text-danger{% endif %}">{{ overdue_count }}</div>
+      <div class="stat-helper">Past due payment terms</div>
+    </div>
+  </div>
+</div>
+
+{# Filter Row #}
+<div class="table-filters-row">
+  <form method="get" class="d-flex gap-2 align-items-center w-100">
+    <div class="search-input-box">
+      <i class="bi bi-search"></i>
+      <input type="text" name="q" class="form-control" placeholder="Search invoice #, customer..." value="{{ request.GET.q }}">
+    </div>
+    <select name="status" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
+      <option value="">All Statuses</option>
+      {% for st_val, st_label in status_choices %}
+        <option value="{{ st_val }}" {% if request.GET.status == st_val %}selected{% endif %}>{{ st_label }}</option>
+      {% endfor %}
+      <option value="overdue" {% if request.GET.status == 'overdue' %}selected{% endif %}>Overdue Only</option>
+    </select>
+    {% if request.GET.q or request.GET.status %}
+      <a href="{% url 'billing:invoice-list' %}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Invoices Table #}
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Customer / Account</th>
+        <th>Issue Date</th>
+        <th>Due Date</th>
+        <th class="text-right">Total Amount</th>
+        <th class="text-right">Balance Due</th>
+        <th>Status</th>
+        <th class="text-right">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td>
+            <a href="{% url 'billing:invoice-detail' inv.id %}" style="font-weight: 600;">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td>
+            <div style="font-weight: 500;">{{ inv.customer.company_name|default:inv.customer.get_full_name|default:inv.customer.email }}</div>
+            <div class="text-muted" style="font-size: 12px;">{{ inv.customer.email }}</div>
+          </td>
+          <td style="font-size: 13px;">{{ inv.issue_date|date:"M d, Y" }}</td>
+          <td style="font-size: 13px;">
+            {{ inv.due_date|date:"M d, Y" }}
+            {% if inv.is_overdue %}
+              <div class="text-danger fw-bold" style="font-size: 11px;">
+                <i class="bi bi-clock-history"></i> {{ inv.days_overdue }}d overdue
+              </div>
+            {% endif %}
+          </td>
+          <td class="text-right" style="font-weight: 600;">
+            ${{ inv.total_amount|floatformat:2 }}
+          </td>
+          <td class="text-right" style="font-weight: 600; color: {% if inv.balance_due > 0 and inv.is_overdue %}#DC2626{% elif inv.balance_due > 0 %}#B45309{% else %}#059669{% endif %};">
+            ${{ inv.balance_due|floatformat:2 }}
+          </td>
+          <td>
+            {% if inv.is_overdue %}
+              <span class="badge-status badge-red"><i class="bi bi-exclamation-circle-fill" style="font-size: 10px;"></i> Overdue</span>
+            {% else %}
+              {% include "components/status_badge.html" with status=inv.status %}
+            {% endif %}
+          </td>
+          <td class="text-right">
+            <a href="{% url 'billing:invoice-detail' inv.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+              View & Pay
+            </a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <p>No invoices found. Click <strong>"Run Automated Billing"</strong> to generate invoices for all due active subscriptions.</p>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

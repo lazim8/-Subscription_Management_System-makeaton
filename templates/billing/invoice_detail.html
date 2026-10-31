@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  @media print {
+    .sidebar, .mobile-navbar, .portal-navbar, .no-print, .btn, .form-card, .sidebar-footer {
+      display: none !important;
+    }
+    .main-content {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+    .content-container {
+      padding: 0 !important;
+      max-width: 100% !important;
+    }
+    .card-surface {
+      border: none !important;
+      padding: 0 !important;
+    }
+    body {
+      background: #FFFFFF !important;
+      color: #000000 !important;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{# Top Actions Bar #}
+<div class="page-header-row no-print">
+  <div class="d-flex align-items-center gap-3">
+    <h1 class="page-title">{{ invoice.invoice_number }}</h1>
+    {% if invoice.is_overdue %}
+      <span class="badge-status badge-red"><i class="bi bi-exclamation-circle-fill" style="font-size: 10px;"></i> Overdue</span>
+    {% else %}
+      {% include "components/status_badge.html" with status=invoice.status %}
+    {% endif %}
+  </div>
+
+  <div class="d-flex align-items-center gap-2">
+    <button onclick="window.print()" class="btn btn-secondary">
+      <i class="bi bi-printer me-1"></i> Print / PDF
+    </button>
+
+    {% if invoice.status == 'draft' %}
+      <form action="{% url 'billing:invoice-status-update' invoice.id %}" method="post" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="status" value="confirmed">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check2-circle me-1"></i> Confirm & Send
+        </button>
+      </form>
+    {% endif %}
+
+    {% if invoice.status == 'draft' or invoice.status == 'confirmed' %}
+      <form action="{% url 'billing:invoice-status-update' invoice.id %}" method="post" class="d-inline" onsubmit="return confirm('Cancel this invoice?');">
+        {% csrf_token %}
+        <input type="hidden" name="status" value="cancelled">
+        <button type="submit" class="btn btn-secondary text-danger">
+          <i class="bi bi-x-circle me-1"></i> Cancel
+        </button>
+      </form>
+    {% endif %}
+
+    <a href="{% url 'billing:invoice-list' %}" class="btn btn-secondary">Back to Invoices</a>
+  </div>
+</div>
+
+{# Printable Invoice Document #}
+<div class="card-surface p-4 mb-4" id="invoiceDocument">
+  {# Document Header #}
+  <div class="d-flex justify-content-between align-items-start border-bottom pb-4 mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="brand-logo" style="width: 28px; height: 28px; background: var(--accent-primary); color: white; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: bold;">B</div>
+        <span class="fs-4 fw-bold">Brightloop Software</span>
+      </div>
+      <div class="text-muted" style="font-size: 13px;">100 Innovation Way, Suite 800</div>
+      <div class="text-muted" style="font-size: 13px;">Austin, TX 78701</div>
+      <div class="text-muted" style="font-size: 13px;">billing@brightloop.com</div>
+    </div>
+
+    <div class="text-end">
+      <h2 class="fs-3 fw-bold mb-1" style="color: var(--accent-primary);">INVOICE</h2>
+      <div class="fw-semibold fs-5">{{ invoice.invoice_number }}</div>
+      <div class="text-muted" style="font-size: 13px; margin-top: 4px;">
+        Issue Date: <strong>{{ invoice.issue_date|date:"M d, Y" }}</strong>
+      </div>
+      <div class="text-muted" style="font-size: 13px;">
+        Due Date: <strong {% if invoice.is_overdue %}class="text-danger"{% endif %}>{{ invoice.due_date|date:"M d, Y" }}</strong>
+      </div>
+      <div class="text-muted" style="font-size: 13px;">
+        Subscription: <a href="{% url 'billing:subscription-detail' invoice.subscription.id %}" class="no-print">{{ invoice.subscription.subscription_number }}</a>
+      </div>
+    </div>
+  </div>
+
+  {# Bill To & Service Details #}
+  <div class="row mb-4">
+    <div class="col-sm-6">
+      <div class="text-muted" style="font-size: 12px; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Billed To:</div>
+      <div class="fw-bold fs-6">{{ invoice.customer.company_name|default:invoice.customer.get_full_name|default:invoice.customer.email }}</div>
+      {% if invoice.customer.company_name and invoice.customer.get_full_name %}
+        <div style="font-size: 14px;">Attn: {{ invoice.customer.get_full_name }}</div>
+      {% endif %}
+      <div style="font-size: 14px;">{{ invoice.customer.email }}</div>
+      {% if invoice.customer.phone %}
+        <div style="font-size: 14px;">{{ invoice.customer.phone }}</div>
+      {% endif %}
+      {% if invoice.customer.address %}
+        <div class="text-muted" style="font-size: 13px; margin-top: 4px;">{{ invoice.customer.address }}</div>
+      {% endif %}
+    </div>
+
+    <div class="col-sm-6 text-sm-end mt-3 mt-sm-0">
+      <div class="text-muted" style="font-size: 12px; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Billing Period & Terms:</div>
+      <div style="font-size: 14px;">Period: <strong>{{ invoice.billing_period_start|date:"M d, Y" }}</strong> to <strong>{{ invoice.billing_period_end|date:"M d, Y" }}</strong></div>
+      <div style="font-size: 14px;">Payment Terms: <strong>{{ invoice.subscription.get_payment_terms_display }}</strong></div>
+      <div style="font-size: 14px;">Cadence: <strong>{{ invoice.subscription.plan.name }}</strong></div>
+    </div>
+  </div>
+
+  {# Itemized Lines Table #}
+  <div class="table-container mb-4">
+    <table class="table-minimal">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="text-right" style="width: 80px;">Qty</th>
+          <th class="text-right" style="width: 140px;">Unit Price</th>
+          <th class="text-right" style="width: 120px;">Tax</th>
+          <th class="text-right" style="width: 140px;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in invoice.lines.all %}
+          <tr>
+            <td>
+              <div style="font-weight: 600;">{{ line.description }}</div>
+            </td>
+            <td class="text-right">{{ line.quantity }}</td>
+            <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
+            <td class="text-right text-muted">
+              ${{ line.tax_amount|floatformat:2 }} ({{ line.tax_rate }}%)
+            </td>
+            <td class="text-right" style="font-weight: 600;">
+              ${{ line.line_total|floatformat:2 }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="text-center py-3 text-muted">No line items.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Financial Totals Summary #}
+  <div class="row">
+    <div class="col-md-6">
+      {% if invoice.notes %}
+        <div class="p-3 rounded bg-light" style="font-size: 13px;">
+          <strong>Notes:</strong> {{ invoice.notes }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="col-md-6">
+      <div class="d-flex justify-content-between py-1" style="font-size: 14px;">
+        <span class="text-muted">Subtotal:</span>
+        <span class="fw-semibold">${{ invoice.subtotal|floatformat:2 }}</span>
+      </div>
+      {% if invoice.discount_amount > 0 %}
+        <div class="d-flex justify-content-between py-1 text-success" style="font-size: 14px;">
+          <span>Discount Applied:</span>
+          <span>-${{ invoice.discount_amount|floatformat:2 }}</span>
+        </div>
+      {% endif %}
+      <div class="d-flex justify-content-between py-1" style="font-size: 14px;">
+        <span class="text-muted">Total Taxes:</span>
+        <span>+${{ invoice.tax_amount|floatformat:2 }}</span>
+      </div>
+      <div class="d-flex justify-content-between py-2 border-top mt-2 fs-5 fw-bold">
+        <span>Invoice Total:</span>
+        <span>${{ invoice.total_amount|floatformat:2 }}</span>
+      </div>
+      <div class="d-flex justify-content-between py-1 text-muted" style="font-size: 14px;">
+        <span>Amount Paid:</span>
+        <span>${{ invoice.paid_amount|floatformat:2 }}</span>
+      </div>
+      <div class="d-flex justify-content-between py-2 border-top border-bottom mt-1 fs-5 fw-bold" style="color: {% if invoice.balance_due == 0 %}#059669{% else %}#DC2626{% endif %};">
+        <span>Balance Due:</span>
+        <span>${{ invoice.balance_due|floatformat:2 }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Payments Received Ledger & Recording Section #}
+<div class="row g-4 no-print">
+  {# Left: Payments Ledger #}
+  <div class="col-lg-7">
+    <div class="card-surface h-100">
+      <h2 class="fs-6 fw-bold mb-3">Payments Ledger</h2>
+      <div class="table-container">
+        <table class="table-minimal">
+          <thead>
+            <tr>
+              <th>Receipt #</th>
+              <th>Method</th>
+              <th>Date</th>
+              <th>Reference</th>
+              <th class="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payment in payments %}
+              <tr>
+                <td style="font-weight: 500;">{{ payment.payment_number }}</td>
+                <td>
+                  <span class="badge-status badge-gray">{{ payment.get_payment_method_display }}</span>
+                </td>
+                <td style="font-size: 13px;">{{ payment.payment_date|date:"M d, Y" }}</td>
+                <td class="text-muted" style="font-size: 13px;">{{ payment.transaction_reference|default:"—" }}</td>
+                <td class="text-right" style="font-weight: 600; color: #059669;">
+                  ${{ payment.amount|floatformat:2 }}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center py-3 text-muted">No payments recorded yet against this invoice.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Right: Record Payment Form #}
+  <div class="col-lg-5">
+    <div class="card-surface h-100">
+      <h2 class="fs-6 fw-bold mb-1">Record Payment</h2>
+      {% if invoice.balance_due > 0 %}
+        <p class="text-muted mb-3" style="font-size: 13px;">Record customer payment via credit card, bank transfer, Stripe, or cash.</p>
+        <form action="{% url 'billing:invoice-payment-record' invoice.id %}" method="post">
+          {% csrf_token %}
+          <div class="form-group">
+            <label class="form-label">Payment Amount ($) <span style="color: #DC2626;">*</span></label>
+            {{ payment_form.amount }}
+          </div>
+          <div class="row">
+            <div class="col-sm-6 form-group">
+              <label class="form-label">Tender Method <span style="color: #DC2626;">*</span></label>
+              {{ payment_form.payment_method }}
+            </div>
+            <div class="col-sm-6 form-group">
+              <label class="form-label">Payment Date <span style="color: #DC2626;">*</span></label>
+              {{ payment_form.payment_date }}
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Transaction Reference</label>
+            {{ payment_form.transaction_reference }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reconciliation Notes</label>
+            {{ payment_form.notes }}
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-check-lg me-1"></i> Record & Settle Payment
+            </button>
+          </div>
+        </form>
+      {% else %}
+        <div class="empty-state py-4 text-center">
+          <i class="bi bi-patch-check-fill text-success fs-1 mb-2 d-block"></i>
+          <p class="mb-0 fw-semibold text-success">Invoice is fully settled!</p>
+          <small class="text-muted">Zero balance due ($0.00).</small>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

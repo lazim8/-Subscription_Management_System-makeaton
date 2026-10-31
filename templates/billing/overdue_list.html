@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Overdue Receivables{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Overdue Receivables & Chasing Center</h1>
+    <div class="page-subtitle">Identify overdue customer invoices by aging bucket and dispatch collection notices</div>
+  </div>
+  <a href="{% url 'billing:invoice-list' %}" class="btn btn-secondary">Back to Invoices</a>
+</div>
+
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Customer / Account</th>
+        <th>Due Date</th>
+        <th>Aging Category</th>
+        <th class="text-right">Balance Due</th>
+        <th class="text-right">Collection Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in overdue_invoices %}
+        <tr>
+          <td>
+            <a href="{% url 'billing:invoice-detail' inv.id %}" style="font-weight: 600;">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td>
+            <div style="font-weight: 500;">{{ inv.customer.company_name|default:inv.customer.get_full_name|default:inv.customer.email }}</div>
+            <div class="text-muted" style="font-size: 12px;">{{ inv.customer.email }}</div>
+          </td>
+          <td style="font-size: 13px;" class="text-danger fw-semibold">
+            {{ inv.due_date|date:"M d, Y" }}
+          </td>
+          <td>
+            <span class="badge-status badge-red">
+              <i class="bi bi-clock-history" style="font-size: 10px;"></i> {{ inv.aging_bucket }} ({{ inv.days_overdue }} days)
+            </span>
+          </td>
+          <td class="text-right" style="font-weight: 700; color: #DC2626; font-size: 15px;">
+            ${{ inv.balance_due|floatformat:2 }}
+          </td>
+          <td class="text-right">
+            <form method="post" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="invoice_id" value="{{ inv.id }}">
+              <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+                <i class="bi bi-send me-1"></i> Send Notice
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6">
+            <div class="empty-state py-4 text-center">
+              <i class="bi bi-check-circle-fill text-success fs-2 mb-2 d-block"></i>
+              <p class="mb-0 fw-semibold text-success">Zero overdue receivables!</p>
+              <small class="text-muted">All customer invoices are settled or within current payment terms.</small>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

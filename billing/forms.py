@@ -62,3 +62,18 @@ class SubscriptionForm(forms.ModelForm):
         # Limit customer choices to accounts with role='customer'
         self.fields['customer'].queryset = User.objects.filter(role=User.Role.CUSTOMER).order_by('email')
         self.fields['discount'].queryset = Discount.objects.filter(is_active=True).order_by('code')
+
+
+class PaymentForm(forms.ModelForm):
+    class Meta:
+        from .models import Payment
+        model = Payment
+        fields = ['amount', 'payment_method', 'payment_date', 'transaction_reference', 'notes']
+        widgets = {
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0.00'}),
+            'payment_method': forms.Select(attrs={'class': 'form-select'}),
+            'payment_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'transaction_reference': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Wire #98234 or Stripe ch_3Nx...'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Audit or reconciliation note'}),
+        }
+

@@ -350,3 +350,182 @@ class SubscriptionAuditLog(models.Model):
     def __str__(self):
         by = self.changed_by.email if self.changed_by else "System"
         return f"{self.subscription.subscription_number}: {self.from_status} -> {self.to_status} by {by} at {self.timestamp}"
+
+
+class Invoice(models.Model):
+    """
+    Invoices generated automatically on billing day from active subscriptions,
+    with double-billing guard and real-time payment reconciliation.
+    """
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        CONFIRMED = 'confirmed', 'Confirmed'
+        PAID = 'paid', 'Paid'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    invoice_number = models.CharField(max_length=64, unique=True, editable=False, db_index=True)
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='invoices')
+    customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='invoices')
+
+    billing_period_start = models.DateField(help_text="Start of the service period billed")
+    billing_period_end = models.DateField(help_text="End of the service period billed")
+
+    issue_date = models.DateField(default=date.today)
+    due_date = models.DateField(help_text="Calculated from payment terms")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
+
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-issue_date', '-id']
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.customer.company_name or self.customer.email} (${self.total_amount})"
+
+    def save(self, *args, **kwargs):
+        # Auto-generate invoice number (e.g. INV-2026-0001)
+        if not self.invoice_number:
+            year = date.today().year
+            last_inv = Invoice.objects.filter(invoice_number__startswith=f"INV-{year}-").order_by('-id').first()
+            if last_inv:
+                try:
+                    last_num = int(last_inv.invoice_number.split('-')[-1])
+                    new_num = last_num + 1
+                except ValueError:
+                    new_num = Invoice.objects.count() + 1
+            else:
+                new_num = Invoice.objects.count() + 1
+            self.invoice_number = f"INV-{year}-{new_num:04d}"
+
+        # Calculate due date from payment terms if not explicitly set
+        if not self.due_date:
+            terms = self.subscription.payment_terms
+            if terms == Subscription.PaymentTerms.NET_15:
+                self.due_date = self.issue_date + timedelta(days=15)
+            elif terms == Subscription.PaymentTerms.NET_30:
+                self.due_date = self.issue_date + timedelta(days=30)
+            elif terms == Subscription.PaymentTerms.NET_60:
+                self.due_date = self.issue_date + timedelta(days=60)
+            else:
+                self.due_date = self.issue_date  # Immediate / Due on Receipt
+
+        super().save(*args, **kwargs)
+
+    @property
+    def balance_due(self):
+        """Remaining outstanding receivable amount."""
+        return max(Decimal('0.00'), self.total_amount - self.paid_amount)
+
+    @property
+    def is_overdue(self):
+        """Flagged overdue if confirmed, has outstanding balance, and past due date."""
+        return self.status == self.Status.CONFIRMED and self.balance_due > Decimal('0.00') and self.due_date < date.today()
+
+    @property
+    def days_overdue(self):
+        if self.is_overdue:
+            return (date.today() - self.due_date).days
+        return 0
+
+    @property
+    def aging_bucket(self):
+        """Categorize into overdue receivables aging buckets."""
+        days = self.days_overdue
+        if days == 0:
+            return "Current"
+        elif days <= 15:
+            return "1–15 Days"
+        elif days <= 30:
+            return "16–30 Days"
+        elif days <= 60:
+            return "31–60 Days"
+        else:
+            return "60+ Days"
+
+    def update_payment_status(self):
+        """Recalculates total paid from payments ledger and auto-settles status."""
+        total_paid = sum(p.amount for p in self.payments.all())
+        self.paid_amount = total_paid.quantize(Decimal('0.01'))
+        if self.paid_amount >= self.total_amount and self.status == self.Status.CONFIRMED:
+            self.status = self.Status.PAID
+        elif self.paid_amount < self.total_amount and self.status == self.Status.PAID:
+            self.status = self.Status.CONFIRMED
+        self.save(update_fields=['paid_amount', 'status'])
+
+
+class InvoiceLine(models.Model):
+    """
+    Itemized product lines inside an invoice.
+    """
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    variant = models.ForeignKey(ProductVariant, on_delete=models.SET_NULL, null=True, blank=True)
+    description = models.CharField(max_length=255)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    line_total = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.description} (${self.line_total})"
+
+
+class Payment(models.Model):
+    """
+    Payment transaction recording against an invoice.
+    Supports partial payments, multiple tender methods, and notes.
+    """
+    class PaymentMethod(models.TextChoices):
+        CREDIT_CARD = 'credit_card', 'Credit Card'
+        BANK_TRANSFER = 'bank_transfer', 'Bank Transfer'
+        STRIPE = 'stripe', 'Stripe'
+        UPI = 'upi', 'UPI / QR'
+        CASH = 'cash', 'Cash'
+        DIRECT_DEBIT = 'direct_debit', 'Direct Debit'
+
+    payment_number = models.CharField(max_length=64, unique=True, editable=False, db_index=True)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CREDIT_CARD)
+    payment_date = models.DateField(default=date.today)
+    transaction_reference = models.CharField(max_length=100, blank=True, help_text="Bank reference, Stripe ID, or receipt #")
+    notes = models.TextField(blank=True, help_text="Reconciliation or audit notes")
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-payment_date', '-id']
+
+    def __str__(self):
+        return f"{self.payment_number}: ${self.amount} for {self.invoice.invoice_number} ({self.get_payment_method_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.payment_number:
+            year = date.today().year
+            last_pay = Payment.objects.filter(payment_number__startswith=f"PAY-{year}-").order_by('-id').first()
+            if last_pay:
+                try:
+                    last_num = int(last_pay.payment_number.split('-')[-1])
+                    new_num = last_num + 1
+                except ValueError:
+                    new_num = Payment.objects.count() + 1
+            else:
+                new_num = Payment.objects.count() + 1
+            self.payment_number = f"PAY-{year}-{new_num:04d}"
+
+        super().save(*args, **kwargs)
+        # Update parent invoice payment total and auto-settle status
+        self.invoice.update_payment_status()
+

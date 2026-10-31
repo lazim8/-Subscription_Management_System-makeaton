@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Payments Ledger{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Payments Ledger</h1>
+    <div class="page-subtitle">Track all customer payments, transaction references, and settlement methods</div>
+  </div>
+</div>
+
+{# Total Revenue Banner #}
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="stat-label">Total Revenue Collected</div>
+      <div class="stat-value fs-4 text-success">${{ total_collected|floatformat:2 }}</div>
+      <div class="stat-helper">All settled transactions</div>
+    </div>
+  </div>
+</div>
+
+{# Filter Row #}
+<div class="table-filters-row">
+  <form method="get" class="d-flex gap-2 align-items-center w-100">
+    <div class="search-input-box">
+      <i class="bi bi-search"></i>
+      <input type="text" name="q" class="form-control" placeholder="Search reference, customer, invoice..." value="{{ request.GET.q }}">
+    </div>
+    <select name="method" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
+      <option value="">All Tender Methods</option>
+      {% for m_val, m_label in methods %}
+        <option value="{{ m_val }}" {% if request.GET.method == m_val %}selected{% endif %}>{{ m_label }}</option>
+      {% endfor %}
+    </select>
+    {% if request.GET.q or request.GET.method %}
+      <a href="{% url 'billing:payment-list' %}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Payments Table #}
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Receipt #</th>
+        <th>Invoice</th>
+        <th>Customer</th>
+        <th>Method</th>
+        <th>Reference</th>
+        <th>Date</th>
+        <th class="text-right">Amount</th>
+        <th>Recorded By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for payment in payments %}
+        <tr>
+          <td style="font-weight: 600;">{{ payment.payment_number }}</td>
+          <td>
+            <a href="{% url 'billing:invoice-detail' payment.invoice.id %}">
+              {{ payment.invoice.invoice_number }}
+            </a>
+          </td>
+          <td>
+            <div style="font-weight: 500;">{{ payment.invoice.customer.company_name|default:payment.invoice.customer.email }}</div>
+          </td>
+          <td>
+            <span class="badge-status badge-gray">{{ payment.get_payment_method_display }}</span>
+          </td>
+          <td class="text-muted" style="font-size: 13px;">{{ payment.transaction_reference|default:"—" }}</td>
+          <td style="font-size: 13px;">{{ payment.payment_date|date:"M d, Y" }}</td>
+          <td class="text-right" style="font-weight: 600; color: #059669;">
+            +${{ payment.amount|floatformat:2 }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-muted);">
+            {{ payment.recorded_by.first_name|default:payment.recorded_by.email|default:"Staff" }}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <p>No payments recorded yet.</p>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

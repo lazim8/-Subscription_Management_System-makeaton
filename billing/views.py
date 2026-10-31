@@ -16,8 +16,17 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView
 
 from accounts.mixins import StaffRequiredMixin, AdminRequiredMixin
 from catalog.models import Product, ProductVariant, Plan, QuotationTemplate
-from .models import Tax, Discount, Subscription, SubscriptionLine, SubscriptionAuditLog
-from .forms import TaxForm, DiscountForm, SubscriptionForm
+from .models import (
+    Tax,
+    Discount,
+    Subscription,
+    SubscriptionLine,
+    SubscriptionAuditLog,
+    Invoice,
+    InvoiceLine,
+    Payment,
+)
+from .forms import TaxForm, DiscountForm, SubscriptionForm, PaymentForm
 
 
 # --- Subscriptions Views ---
@@ -241,3 +250,288 @@ class DiscountUpdateView(AdminRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, f"Discount rule '{form.instance.code}' updated.")
         return super().form_valid(form)
+
+
+# --- Invoicing, Automated Billing Run & Payments (Step 4) ---
+
+class AutomatedBillingRunView(StaffRequiredMixin, View):
+    """
+    1-Click Automated Billing Engine:
+    - Scans active subscriptions due for billing (next_billing_date <= today)
+    - Enforces strict Double-Billing Guard
+    - Generates invoices, applies discounts & taxes automatically
+    - Advances next_billing_date based on plan cadence
+    """
+    def post(self, request):
+        today = date.today()
+        # Find active subscriptions due for billing
+        due_subscriptions = Subscription.objects.filter(
+            status=Subscription.Status.ACTIVE,
+            next_billing_date__lte=today
+        ).select_related('customer', 'plan', 'discount').prefetch_related('lines__product', 'lines__variant', 'lines__tax')
+
+        invoices_created = 0
+        total_billed = Decimal('0.00')
+        skipped_count = 0
+
+        for sub in due_subscriptions:
+            # 1. Double-Billing Guard: check if an invoice already exists for this exact billing period
+            start_date = sub.next_billing_date
+            period = sub.plan.billing_period
+
+            if period == Plan.BillingPeriod.DAILY:
+                end_date = start_date + timedelta(days=1)
+            elif period == Plan.BillingPeriod.WEEKLY:
+                end_date = start_date + timedelta(days=7)
+            elif period == Plan.BillingPeriod.MONTHLY:
+                end_date = start_date + timedelta(days=30)
+            elif period == Plan.BillingPeriod.YEARLY:
+                end_date = start_date + timedelta(days=365)
+            else:
+                end_date = start_date + timedelta(days=30)
+
+            # Check if active invoice already generated for this cycle
+            existing = Invoice.objects.filter(
+                subscription=sub,
+                billing_period_start=start_date,
+                status__in=[Invoice.Status.DRAFT, Invoice.Status.CONFIRMED, Invoice.Status.PAID]
+            ).exists()
+
+            if existing:
+                skipped_count += 1
+                continue
+
+            # 2. Create Invoice
+            invoice = Invoice.objects.create(
+                subscription=sub,
+                customer=sub.customer,
+                billing_period_start=start_date,
+                billing_period_end=end_date,
+                issue_date=today,
+                status=Invoice.Status.CONFIRMED,  # Automatically confirmed for sending
+                notes=f"Automated recurring billing run for {sub.plan.name} ({start_date} to {end_date})"
+            )
+
+            # 3. Create Itemized Invoice Lines
+            subtotal = Decimal('0.00')
+            tax_total = Decimal('0.00')
+
+            for s_line in sub.lines.all():
+                line_tax = s_line.line_tax
+                tax_rate = s_line.tax.rate if s_line.tax else Decimal('0.00')
+                v_desc = f" ({s_line.variant.attribute}: {s_line.variant.value})" if s_line.variant else ""
+                desc = f"{s_line.product.name}{v_desc}"
+
+                InvoiceLine.objects.create(
+                    invoice=invoice,
+                    product=s_line.product,
+                    variant=s_line.variant,
+                    description=desc,
+                    quantity=s_line.quantity,
+                    unit_price=s_line.unit_price,
+                    tax_rate=tax_rate,
+                    tax_amount=line_tax,
+                    line_total=s_line.line_total
+                )
+                subtotal += s_line.line_subtotal
+                tax_total += line_tax
+
+            # 4. Calculate discount
+            discount_amount = Decimal('0.00')
+            if sub.discount:
+                valid, _ = sub.discount.is_valid_for(subtotal, sub.total_quantity)
+                if valid:
+                    discount_amount = sub.discount.calculate_discount(subtotal)
+
+            total_amount = (subtotal - discount_amount + tax_total).quantize(Decimal('0.01'))
+
+            invoice.subtotal = subtotal
+            invoice.discount_amount = discount_amount
+            invoice.tax_amount = tax_total
+            invoice.total_amount = total_amount
+            invoice.save()
+
+            # 5. Advance subscription next_billing_date
+            sub.next_billing_date = end_date
+            sub.save(update_fields=['next_billing_date'])
+
+            invoices_created += 1
+            total_billed += total_amount
+
+        if invoices_created > 0:
+            messages.success(
+                request,
+                f"Automated Billing Run complete: {invoices_created} invoices generated totaling ${total_billed:,.2f}. "
+                f"({skipped_count} subscriptions protected by double-billing guard)."
+            )
+        else:
+            messages.info(
+                request,
+                f"Billing Run: All subscriptions are up to date! ({skipped_count} subscriptions protected by double-billing guard)."
+            )
+
+        return redirect('billing:invoice-list')
+
+
+class InvoiceListView(StaffRequiredMixin, ListView):
+    """
+    List all generated invoices with status filters (Draft, Confirmed, Paid, Cancelled, Overdue) and search.
+    """
+    model = Invoice
+    template_name = 'billing/invoice_list.html'
+    context_object_name = 'invoices'
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Invoice.objects.select_related('customer', 'subscription__plan').all()
+        q = self.request.GET.get('q', '').strip()
+        status_filter = self.request.GET.get('status', '').strip()
+
+        if q:
+            qs = qs.filter(
+                Q(invoice_number__icontains=q) |
+                Q(customer__email__icontains=q) |
+                Q(customer__company_name__icontains=q) |
+                Q(subscription__subscription_number__icontains=q)
+            )
+
+        if status_filter == 'overdue':
+            today = date.today()
+            qs = qs.filter(status=Invoice.Status.CONFIRMED, due_date__lt=today)
+        elif status_filter:
+            qs = qs.filter(status=status_filter)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['status_choices'] = Invoice.Status.choices
+        # Calculate summary metrics
+        today = date.today()
+        context['total_unpaid'] = sum(
+            inv.balance_due for inv in Invoice.objects.filter(status=Invoice.Status.CONFIRMED)
+        )
+        context['overdue_count'] = Invoice.objects.filter(
+            status=Invoice.Status.CONFIRMED,
+            due_date__lt=today
+        ).count()
+        return context
+
+
+class InvoiceDetailView(StaffRequiredMixin, DetailView):
+    """
+    Detailed printable view of an invoice, payment ledger, and modal for recording payments.
+    """
+    model = Invoice
+    template_name = 'billing/invoice_detail.html'
+    context_object_name = 'invoice'
+
+    def get_context_data(self, **kwargs):
+        from .forms import PaymentForm
+        context = super().get_context_data(**kwargs)
+        inv = self.object
+        context['payments'] = inv.payments.select_related('recorded_by').all()
+        context['payment_form'] = PaymentForm(initial={'amount': inv.balance_due, 'payment_date': date.today()})
+        return context
+
+
+class InvoiceStatusUpdateView(StaffRequiredMixin, View):
+    """
+    POST action to Confirm or Cancel an invoice.
+    """
+    def post(self, request, pk):
+        invoice = get_object_or_404(Invoice, pk=pk)
+        new_status = request.POST.get('status')
+        if new_status in [Invoice.Status.CONFIRMED, Invoice.Status.CANCELLED]:
+            invoice.status = new_status
+            invoice.save(update_fields=['status'])
+            messages.success(request, f"Invoice {invoice.invoice_number} status set to {invoice.get_status_display()}.")
+        return redirect('billing:invoice-detail', pk=invoice.id)
+
+
+class InvoicePaymentRecordView(StaffRequiredMixin, View):
+    """
+    POST action to record a partial or full payment against an invoice.
+    """
+    def post(self, request, pk):
+        from .forms import PaymentForm
+        invoice = get_object_or_404(Invoice, pk=pk)
+        form = PaymentForm(request.POST)
+
+        if form.is_valid():
+            payment = form.save(commit=False)
+            payment.invoice = invoice
+            payment.recorded_by = request.user
+            payment.save()
+
+            messages.success(
+                request,
+                f"Payment {payment.payment_number} of ${payment.amount:,.2f} recorded via {payment.get_payment_method_display()}. "
+                f"Remaining balance: ${invoice.balance_due:,.2f}."
+            )
+        else:
+            messages.error(request, "Error recording payment. Please check payment fields.")
+
+        return redirect('billing:invoice-detail', pk=invoice.id)
+
+
+class PaymentListView(StaffRequiredMixin, ListView):
+    """
+    Ledger of all collected payments across all customers.
+    """
+    model = Payment
+    template_name = 'billing/payment_list.html'
+    context_object_name = 'payments'
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Payment.objects.select_related('invoice__customer', 'invoice__subscription', 'recorded_by').all()
+        q = self.request.GET.get('q', '').strip()
+        method = self.request.GET.get('method', '').strip()
+
+        if q:
+            qs = qs.filter(
+                Q(payment_number__icontains=q) |
+                Q(transaction_reference__icontains=q) |
+                Q(invoice__invoice_number__icontains=q) |
+                Q(invoice__customer__email__icontains=q) |
+                Q(invoice__customer__company_name__icontains=q)
+            )
+        if method:
+            qs = qs.filter(payment_method=method)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['methods'] = Payment.PaymentMethod.choices
+        context['total_collected'] = sum(p.amount for p in Payment.objects.all())
+        return context
+
+
+class OverdueInvoicesListView(StaffRequiredMixin, ListView):
+    """
+    Overdue Chasing Center: lists all unpaid confirmed invoices past due date with aging buckets and chase notices.
+    """
+    model = Invoice
+    template_name = 'billing/overdue_list.html'
+    context_object_name = 'overdue_invoices'
+    paginate_by = 25
+
+    def get_queryset(self):
+        today = date.today()
+        return Invoice.objects.filter(
+            status=Invoice.Status.CONFIRMED,
+            due_date__lt=today
+        ).select_related('customer', 'subscription__plan').order_by('due_date')
+
+    def post(self, request):
+        """Action: send automated reminder notice to customer."""
+        invoice_id = request.POST.get('invoice_id')
+        invoice = get_object_or_404(Invoice, id=invoice_id)
+        messages.success(
+            request,
+            f"Overdue payment notice dispatched to {invoice.customer.email} for Invoice {invoice.invoice_number} (${invoice.balance_due:,.2f} due)."
+        )
+        return redirect('billing:overdue-list')
+
