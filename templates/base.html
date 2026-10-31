@@ -1,0 +1,187 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Brightloop{% endblock %} | Subscription Management</title>
+  
+  {# 100% Offline Local Vendor Assets #}
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.css' %}">
+  
+  {# Design Tokens & Theme #}
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="{% if request.user.is_authenticated and request.user.role == 'customer' %}customer-layout{% endif %}">
+
+{% if request.user.is_authenticated %}
+  {% if request.user.role == 'admin' or request.user.role == 'staff' %}
+    {# Mobile Hamburger Bar #}
+    <div class="mobile-navbar">
+      <div class="d-flex align-items-center gap-2">
+        <span class="brand-logo" style="width: 24px; height: 24px; background: var(--accent-primary); color: white; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: bold; font-size: 12px;">B</span>
+        <strong>Brightloop</strong>
+      </div>
+      <button class="btn btn-secondary btn-sm" type="button" id="sidebarToggle" aria-label="Toggle navigation">
+        <i class="bi bi-list fs-5"></i>
+      </button>
+    </div>
+
+    {# Left Slim Sidebar (220px) #}
+    <aside class="sidebar" id="appSidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">B</div>
+        <span>Brightloop</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        {# 1. Dashboard #}
+        <a href="{% url 'dashboard' %}" class="nav-link-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+          <i class="bi bi-grid-1x2"></i>
+          <span>Dashboard</span>
+        </a>
+
+        {# 2. Customers #}
+        <a href="{% url 'accounts:customer-list' %}" class="nav-link-item {% if 'customer' in request.path and 'portal' not in request.path %}active{% endif %}">
+          <i class="bi bi-people"></i>
+          <span>Customers</span>
+        </a>
+
+        {# 3. Products & Plans #}
+        <a href="{% url 'catalog:product-list' %}" class="nav-link-item {% if 'catalog' in request.path %}active{% endif %}">
+          <i class="bi bi-box-seam"></i>
+          <span>Products & Plans</span>
+        </a>
+
+        {# 4. Subscriptions #}
+        <a href="{% url 'billing:subscription-list' %}" class="nav-link-item {% if 'subscription' in request.path and 'portal' not in request.path %}active{% endif %}">
+          <i class="bi bi-arrow-repeat"></i>
+          <span>Subscriptions</span>
+        </a>
+
+        {# 5. Invoices #}
+        <a href="{% url 'billing:invoice-list' %}" class="nav-link-item {% if 'invoice' in request.path and 'portal' not in request.path %}active{% endif %}">
+          <i class="bi bi-receipt"></i>
+          <span>Invoices</span>
+        </a>
+
+        {# 6. Payments #}
+        <a href="{% url 'billing:payment-list' %}" class="nav-link-item {% if 'payment' in request.path %}active{% endif %}">
+          <i class="bi bi-credit-card"></i>
+          <span>Payments</span>
+        </a>
+
+        {# 7. Discounts & Taxes (Admin Only) #}
+        {% if request.user.role == 'admin' %}
+        <a href="{% url 'billing:discount-tax-list' %}" class="nav-link-item {% if 'discounts-taxes' in request.path %}active{% endif %}">
+          <i class="bi bi-percent"></i>
+          <span>Discounts & Taxes</span>
+        </a>
+        {% endif %}
+
+        {# 8. Reports (Admin Only) #}
+        {% if request.user.role == 'admin' %}
+        <a href="{% url 'billing:reports' %}" class="nav-link-item {% if 'reports' in request.path %}active{% endif %}">
+          <i class="bi bi-bar-chart"></i>
+          <span>Reports</span>
+        </a>
+
+        {# Admin: Staff Management #}
+        <a href="{% url 'accounts:staff-list-create' %}" class="nav-link-item {% if 'staff' in request.path %}active{% endif %}">
+          <i class="bi bi-shield-lock"></i>
+          <span>Staff Team</span>
+        </a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile-badge">
+          <div>
+            <div style="font-weight: 500; font-size: 13px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;">
+              {{ request.user.first_name|default:request.user.email }}
+            </div>
+            <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">
+              {{ request.user.role }}
+            </div>
+          </div>
+          <form action="{% url 'accounts:logout' %}" method="post" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-link p-0 text-muted" title="Log out" style="text-decoration: none;">
+              <i class="bi bi-box-arrow-right fs-5"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </aside>
+
+  {% else %}
+    {# Customer Portal Topbar #}
+    <header class="portal-navbar">
+      <div class="d-flex align-items-center gap-4">
+        <div class="sidebar-brand p-0">
+          <div class="brand-logo">B</div>
+          <span>Brightloop Portal</span>
+        </div>
+        <nav class="portal-nav-links">
+          <a href="{% url 'billing:customer-portal-subscriptions' %}" class="{% if 'subscriptions' in request.path %}active{% endif %}">
+            <i class="bi bi-arrow-repeat me-1"></i> My Subscriptions
+          </a>
+          <a href="{% url 'billing:customer-portal-invoices' %}" class="{% if 'invoices' in request.path %}active{% endif %}">
+            <i class="bi bi-receipt me-1"></i> My Invoices
+          </a>
+          <a href="{% url 'accounts:profile' %}" class="{% if 'profile' in request.path %}active{% endif %}">
+            <i class="bi bi-person me-1"></i> Profile
+          </a>
+        </nav>
+      </div>
+
+      <div class="d-flex align-items-center gap-3">
+        <span class="text-muted" style="font-size: 13px;">{{ request.user.email }}</span>
+        <form action="{% url 'accounts:logout' %}" method="post" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary btn-sm">Log out</button>
+        </form>
+      </div>
+    </header>
+  {% endif %}
+{% endif %}
+
+{# Main Content Area #}
+<div class="app-wrapper">
+  <main class="main-content">
+    <div class="content-container">
+      {# Feedback: Django Messages as dismissible alerts #}
+      {% if messages %}
+        <div class="mb-4">
+          {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% else %}secondary{% endif %} alert-dismissible fade show" role="alert" style="border-radius: var(--radius-base); font-size: 14px;">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+{# 100% Offline Local JavaScript Assets #}
+<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
+<script>
+  // Mobile sidebar toggle
+  const toggleBtn = document.getElementById('sidebarToggle');
+  const sidebar = document.getElementById('appSidebar');
+  if (toggleBtn && sidebar) {
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('show');
+    });
+  }
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

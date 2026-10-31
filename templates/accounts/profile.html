@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Account Profile{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Account Profile</h1>
+    <div class="page-subtitle">Manage your personal and business contact details</div>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input type="text" class="form-control" value="{{ request.user.email }}" disabled readonly style="background-color: #F9FAFB;">
+      <small class="text-muted d-block mt-1" style="font-size: 12px;">Email is your unique login credential and cannot be changed.</small>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 form-group">
+        <label for="id_first_name" class="form-label">First Name</label>
+        {{ form.first_name }}
+        {% if form.first_name.errors %}
+          <div class="form-error">{{ form.first_name.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6 form-group">
+        <label for="id_last_name" class="form-label">Last Name</label>
+        {{ form.last_name }}
+        {% if form.last_name.errors %}
+          <div class="form-error">{{ form.last_name.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 form-group">
+        <label for="id_company_name" class="form-label">Company Name</label>
+        {{ form.company_name }}
+        {% if form.company_name.errors %}
+          <div class="form-error">{{ form.company_name.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6 form-group">
+        <label for="id_phone" class="form-label">Phone</label>
+        {{ form.phone }}
+        {% if form.phone.errors %}
+          <div class="form-error">{{ form.phone.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="id_address" class="form-label">Billing Address</label>
+      {{ form.address }}
+      {% if form.address.errors %}
+        <div class="form-error">{{ form.address.errors.0 }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Profile Changes</button>
+      <a href="{% if request.user.role == 'customer' %}{% url 'billing:customer-portal-subscriptions' %}{% else %}{% url 'dashboard' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

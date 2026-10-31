@@ -1,0 +1,27 @@
+{# Reusable Pagination Component #}
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<div class="pagination-row">
+  <div>
+    Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} items
+  </div>
+  <div class="d-flex gap-2">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" class="btn btn-secondary btn-sm">
+        &larr; Previous
+      </a>
+    {% else %}
+      <button class="btn btn-secondary btn-sm" disabled>&larr; Previous</button>
+    {% endif %}
+
+    <span class="d-flex align-items-center px-2">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" class="btn btn-secondary btn-sm">
+        Next &rarr;
+      </a>
+    {% else %}
+      <button class="btn btn-secondary btn-sm" disabled>Next &rarr;</button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

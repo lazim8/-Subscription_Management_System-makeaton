@@ -1,0 +1,20 @@
+{# Reusable Status Badge Component #}
+{% with s=status|lower %}
+  {% if s == 'paid' or s == 'active' %}
+    <span class="badge-status badge-green">
+      <i class="bi bi-check-circle-fill" style="font-size: 10px;"></i> {{ status|title }}
+    </span>
+  {% elif s == 'draft' or s == 'quotation' or s == 'confirmed' or s == 'pending' %}
+    <span class="badge-status badge-amber">
+      <i class="bi bi-clock-fill" style="font-size: 10px;"></i> {{ status|title }}
+    </span>
+  {% elif s == 'overdue' or s == 'cancelled' or s == 'failed' %}
+    <span class="badge-status badge-red">
+      <i class="bi bi-exclamation-circle-fill" style="font-size: 10px;"></i> {{ status|title }}
+    </span>
+  {% else %}
+    <span class="badge-status badge-gray">
+      <i class="bi bi-dash-circle-fill" style="font-size: 10px;"></i> {{ status|title }}
+    </span>
+  {% endif %}
+{% endwith %}

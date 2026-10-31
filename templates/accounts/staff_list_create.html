@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Team{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Internal Staff Team</h1>
+    <div class="page-subtitle">Only System Administrators can provision and manage internal staff access.</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  {# Left Column: Staff Table #}
+  <div class="col-lg-7">
+    <div class="table-container">
+      <table class="table-minimal">
+        <thead>
+          <tr>
+            <th>Staff Member</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Joined</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for staff in staff_list %}
+            <tr>
+              <td>
+                <div style="font-weight: 500;">{{ staff.first_name }} {{ staff.last_name|default:"" }}</div>
+              </td>
+              <td>{{ staff.email }}</td>
+              <td>{{ staff.phone|default:"—" }}</td>
+              <td>{{ staff.date_joined|date:"M d, Y" }}</td>
+              <td>
+                {% if staff.is_active %}
+                  <span class="badge-status badge-green"><i class="bi bi-check-circle-fill" style="font-size: 10px;"></i> Active</span>
+                {% else %}
+                  <span class="badge-status badge-gray"><i class="bi bi-dash-circle-fill" style="font-size: 10px;"></i> Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center py-4 text-muted">
+                No staff members created yet. Use the form on the right to add the first staff member.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Right Column: Provision Staff Member Form #}
+  <div class="col-lg-5">
+    <div class="card-surface">
+      <h2 class="fs-6 fw-bold mb-1">Add New Staff Member</h2>
+      <p class="text-muted mb-3" style="font-size: 13px;">Staff accounts have access to day-to-day quotations, subscriptions, and billing runs.</p>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3" style="font-size: 13px; border-radius: var(--radius-base);">
+            {% for error in form.non_field_errors %}
+              <div>{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="id_email" class="form-label">Work Email <span style="color: #DC2626;">*</span></label>
+          {{ form.email }}
+          {% if form.email.errors %}
+            <div class="form-error">{{ form.email.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="row">
+          <div class="col-sm-6 form-group">
+            <label for="id_first_name" class="form-label">First Name</label>
+            {{ form.first_name }}
+          </div>
+          <div class="col-sm-6 form-group">
+            <label for="id_last_name" class="form-label">Last Name</label>
+            {{ form.last_name }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="id_phone" class="form-label">Phone</label>
+          {{ form.phone }}
+        </div>
+
+        <div class="form-group">
+          <label for="id_password" class="form-label">Initial Password <span style="color: #DC2626;">*</span></label>
+          {{ form.password }}
+          <small class="text-muted d-block mt-1" style="font-size: 12px;">
+            Must be > 8 characters, with uppercase, lowercase, and special character.
+          </small>
+          {% if form.password.errors %}
+            <div class="form-error">{{ form.password.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="mt-4">
+          <button type="submit" class="btn btn-primary w-100">Provision Staff Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

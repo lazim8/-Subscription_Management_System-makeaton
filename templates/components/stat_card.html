@@ -1,0 +1,8 @@
+{# Reusable Stat Card Component #}
+<div class="stat-card">
+  <div class="stat-label">{{ label }}</div>
+  <div class="stat-value">{{ value }}</div>
+  {% if helper %}
+    <div class="stat-helper">{{ helper }}</div>
+  {% endif %}
+</div>
