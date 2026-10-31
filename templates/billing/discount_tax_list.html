@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Discounts & Taxes{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Discounts & Tax Rules</h1>
+    <div class="page-subtitle">Configure automated tax calculation and promotional discount campaign rules</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  {# Left Column: Taxes #}
+  <div class="col-lg-5">
+    <div class="card-surface">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="fs-6 fw-bold mb-0">Tax Rules</h2>
+          <div class="text-muted" style="font-size: 13px;">Automatically applied to line items</div>
+        </div>
+        <a href="{% url 'billing:tax-create' %}" class="btn btn-primary btn-sm">
+          <i class="bi bi-plus-lg me-1"></i> Add Tax
+        </a>
+      </div>
+
+      <div class="table-container">
+        <table class="table-minimal">
+          <thead>
+            <tr>
+              <th>Rule Name</th>
+              <th class="text-right">Rate (%)</th>
+              <th>Default</th>
+              <th class="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tax in taxes %}
+              <tr>
+                <td style="font-weight: 500;">{{ tax.name }}</td>
+                <td class="text-right" style="font-weight: 600;">{{ tax.rate }}%</td>
+                <td>
+                  {% if tax.is_default %}
+                    <span class="badge-status badge-green" style="font-size: 11px;">Default</span>
+                  {% else %}
+                    <span class="text-muted" style="font-size: 12px;">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-right">
+                  <a href="{% url 'billing:tax-edit' tax.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 2px 8px;">
+                    Edit
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center py-3 text-muted">No tax rules created.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Right Column: Discounts #}
+  <div class="col-lg-7">
+    <div class="card-surface">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="fs-6 fw-bold mb-0">Promotional Discounts</h2>
+          <div class="text-muted" style="font-size: 13px;">Fixed or percentage rules with auto-expiry and usage limits</div>
+        </div>
+        <a href="{% url 'billing:discount-create' %}" class="btn btn-primary btn-sm">
+          <i class="bi bi-plus-lg me-1"></i> New Promo
+        </a>
+      </div>
+
+      <div class="table-container">
+        <table class="table-minimal">
+          <thead>
+            <tr>
+              <th>Code / Name</th>
+              <th class="text-right">Discount</th>
+              <th>Usage</th>
+              <th>Validity</th>
+              <th>Status</th>
+              <th class="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in discounts %}
+              <tr>
+                <td>
+                  <span class="badge-status badge-gray fw-bold font-monospace">{{ d.code }}</span>
+                  <div class="text-muted" style="font-size: 12px; margin-top: 2px;">{{ d.name }}</div>
+                </td>
+                <td class="text-right" style="font-weight: 600;">
+                  {% if d.discount_type == 'percent' %}
+                    {{ d.value }}%
+                  {% else %}
+                    ${{ d.value|floatformat:2 }}
+                  {% endif %}
+                </td>
+                <td style="font-size: 13px;">
+                  {{ d.used_count }} / {% if d.max_uses %}{{ d.max_uses }}{% else %}&infin;{% endif %}
+                </td>
+                <td style="font-size: 12px;">
+                  <div>From {{ d.start_date|date:"M d, Y" }}</div>
+                  {% if d.end_date %}
+                    <div class="text-muted">To {{ d.end_date|date:"M d, Y" }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.is_active %}
+                    {% include "components/status_badge.html" with status="active" %}
+                  {% else %}
+                    {% include "components/status_badge.html" with status="closed" %}
+                  {% endif %}
+                </td>
+                <td class="text-right">
+                  <a href="{% url 'billing:discount-edit' d.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 2px 8px;">
+                    Edit
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-3 text-muted">No discount rules configured.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

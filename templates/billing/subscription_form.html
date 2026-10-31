@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Create Subscription{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">New Subscription / Quotation</h1>
+    <div class="page-subtitle">Draft a new customer offer, quotation, or recurring agreement</div>
+  </div>
+  <a href="{% url 'billing:subscription-list' %}" class="btn btn-secondary">Back to List</a>
+</div>
+
+<form method="post" id="subForm" novalidate>
+  {% csrf_token %}
+
+  <div class="row g-4 mb-4">
+    {# General Info #}
+    <div class="col-lg-6">
+      <div class="card-surface h-100">
+        <h2 class="fs-6 fw-bold mb-3">1. Customer & Plan Selection</h2>
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3" style="font-size: 13px; border-radius: var(--radius-base);">
+            {% for error in form.non_field_errors %}
+              <div>{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="id_customer" class="form-label">Customer Account <span style="color: #DC2626;">*</span></label>
+          {{ form.customer }}
+          {% if form.customer.errors %}
+            <div class="form-error">{{ form.customer.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 form-group">
+            <label for="id_plan" class="form-label">Billing Plan <span style="color: #DC2626;">*</span></label>
+            {{ form.plan }}
+            {% if form.plan.errors %}
+              <div class="form-error">{{ form.plan.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-6 form-group">
+            <label for="id_discount" class="form-label">Promo Discount</label>
+            {{ form.discount }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="id_notes" class="form-label">Internal Notes / Terms</label>
+          {{ form.notes }}
+        </div>
+      </div>
+    </div>
+
+    {# Terms & Dates #}
+    <div class="col-lg-6">
+      <div class="card-surface h-100">
+        <h2 class="fs-6 fw-bold mb-3">2. Terms & Contract Dates</h2>
+
+        <div class="form-group">
+          <label for="id_payment_terms" class="form-label">Payment Terms <span style="color: #DC2626;">*</span></label>
+          {{ form.payment_terms }}
+          {% if form.payment_terms.errors %}
+            <div class="form-error">{{ form.payment_terms.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 form-group">
+            <label for="id_start_date" class="form-label">Start Date <span style="color: #DC2626;">*</span></label>
+            {{ form.start_date }}
+            {% if form.start_date.errors %}
+              <div class="form-error">{{ form.start_date.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-6 form-group">
+            <label for="id_expiry_date" class="form-label">Expiry / Renewal Date <span style="color: #DC2626;">*</span></label>
+            {{ form.expiry_date }}
+            {% if form.expiry_date.errors %}
+              <div class="form-error">{{ form.expiry_date.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="alert alert-secondary mt-3 mb-0" style="font-size: 13px; border-radius: var(--radius-base);">
+          <i class="bi bi-info-circle me-1"></i> New subscriptions are initially created in <strong>Draft</strong> status. You can move them to <strong>Quotation</strong>, <strong>Confirmed</strong>, and <strong>Active</strong> from the management screen.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Product Lines Card #}
+  <div class="card-surface mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="fs-6 fw-bold mb-0">3. Subscription Product Lines</h2>
+        <div class="text-muted" style="font-size: 13px;">Specify software licenses, add-on modules, and tax rates</div>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" id="addSubLineBtn">
+        <i class="bi bi-plus-lg me-1"></i> Add Product Line
+      </button>
+    </div>
+
+    <div class="table-container mb-3">
+      <table class="table-minimal" id="subLinesTable">
+        <thead>
+          <tr>
+            <th style="min-width: 240px;">Product & Variant</th>
+            <th style="width: 100px;">Qty</th>
+            <th style="width: 140px;">Unit Price ($)</th>
+            <th style="width: 180px;">Tax Rate</th>
+            <th style="width: 50px;"></th>
+          </tr>
+        </thead>
+        <tbody id="subLinesBody">
+          {% if preset_lines %}
+            {% for pl in preset_lines %}
+              <tr class="line-row">
+                <td>
+                  <select name="product_id" class="form-select form-select-sm mb-1" required>
+                    <option value="">Select a Product...</option>
+                    {% for p in products %}
+                      <option value="{{ p.id }}" {% if pl.product.id == p.id %}selected{% endif %}>{{ p.name }} (${{ p.sales_price }})</option>
+                    {% endfor %}
+                  </select>
+                  <select name="variant_id" class="form-select form-select-sm">
+                    <option value="">Standard (No Variant)</option>
+                    {% for p in products %}
+                      {% for v in p.variants.all %}
+                        <option value="{{ v.id }}" {% if pl.variant and pl.variant.id == v.id %}selected{% endif %}>{{ p.name }} — {{ v.attribute }}: {{ v.value }} (+${{ v.extra_price }})</option>
+                      {% endfor %}
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <input type="number" name="quantity" class="form-control form-control-sm" value="{{ pl.quantity }}" min="1" required>
+                </td>
+                <td>
+                  <input type="number" step="0.01" name="unit_price" class="form-control form-control-sm" value="{{ pl.unit_price }}" required>
+                </td>
+                <td>
+                  <select name="tax_id" class="form-select form-select-sm">
+                    <option value="">No Tax (0%)</option>
+                    {% for t in taxes %}
+                      <option value="{{ t.id }}" {% if t.is_default %}selected{% endif %}>{{ t.name }} ({{ t.rate }}%)</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-link text-danger p-0 remove-line-btn" title="Remove line">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="line-row">
+              <td>
+                <select name="product_id" class="form-select form-select-sm mb-1" required>
+                  <option value="">Select a Product...</option>
+                  {% for p in products %}
+                    <option value="{{ p.id }}" data-price="{{ p.sales_price }}">{{ p.name }} (${{ p.sales_price }})</option>
+                  {% endfor %}
+                </select>
+                <select name="variant_id" class="form-select form-select-sm">
+                  <option value="">Standard (No Variant)</option>
+                  {% for p in products %}
+                    {% for v in p.variants.all %}
+                      <option value="{{ v.id }}" data-extra="{{ v.extra_price }}">{{ p.name }} — {{ v.attribute }}: {{ v.value }} (+${{ v.extra_price }})</option>
+                    {% endfor %}
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" name="quantity" class="form-control form-control-sm" value="1" min="1" required>
+              </td>
+              <td>
+                <input type="number" step="0.01" name="unit_price" class="form-control form-control-sm" placeholder="0.00" required>
+              </td>
+              <td>
+                <select name="tax_id" class="form-select form-select-sm">
+                  <option value="">No Tax (0%)</option>
+                  {% for t in taxes %}
+                    <option value="{{ t.id }}" {% if t.is_default %}selected{% endif %}>{{ t.name }} ({{ t.rate }}%)</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td class="text-center">
+                <button type="button" class="btn btn-link text-danger p-0 remove-line-btn" title="Remove line">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Create Subscription (Draft)</button>
+      <a href="{% url 'billing:subscription-list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Add dynamic line
+  document.getElementById('addSubLineBtn').addEventListener('click', () => {
+    const tbody = document.getElementById('subLinesBody');
+    const firstRow = tbody.querySelector('.line-row');
+    if (firstRow) {
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('select[name="product_id"]').value = "";
+      clone.querySelector('select[name="variant_id"]').value = "";
+      clone.querySelector('input[name="quantity"]').value = "1";
+      clone.querySelector('input[name="unit_price"]').value = "";
+      tbody.appendChild(clone);
+    }
+  });
+
+  // Remove line
+  document.getElementById('subLinesBody').addEventListener('click', (e) => {
+    if (e.target.closest('.remove-line-btn')) {
+      const rows = document.querySelectorAll('.line-row');
+      if (rows.length > 1) {
+        e.target.closest('.line-row').remove();
+      }
+    }
+  });
+</script>
+{% endblock %}

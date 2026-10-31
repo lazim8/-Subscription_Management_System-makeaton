@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Subscriptions{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">Subscriptions & Quotes</h1>
+    <div class="page-subtitle">Track recurring customer contracts, quotation lifecycles, and renewal terms</div>
+  </div>
+  <a href="{% url 'billing:subscription-create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i> New Subscription
+  </a>
+</div>
+
+{# Filter Row #}
+<div class="table-filters-row">
+  <form method="get" class="d-flex gap-2 align-items-center w-100">
+    <div class="search-input-box">
+      <i class="bi bi-search"></i>
+      <input type="text" name="q" class="form-control" placeholder="Search number, customer, company..." value="{{ request.GET.q }}">
+    </div>
+    <select name="status" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
+      <option value="">All Statuses</option>
+      {% for st_val, st_label in status_choices %}
+        <option value="{{ st_val }}" {% if request.GET.status == st_val %}selected{% endif %}>{{ st_label }}</option>
+      {% endfor %}
+    </select>
+    {% if request.GET.q or request.GET.status %}
+      <a href="{% url 'billing:subscription-list' %}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Subscriptions Table #}
+<div class="table-container">
+  <table class="table-minimal">
+    <thead>
+      <tr>
+        <th>Subscription #</th>
+        <th>Customer / Company</th>
+        <th>Plan</th>
+        <th class="text-right">Recurring Fee</th>
+        <th class="text-right">MRR</th>
+        <th>Status</th>
+        <th>Expiry Date</th>
+        <th class="text-right">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sub in subscriptions %}
+        <tr>
+          <td>
+            <a href="{% url 'billing:subscription-detail' sub.id %}" style="font-weight: 600;">
+              {{ sub.subscription_number }}
+            </a>
+          </td>
+          <td>
+            <div style="font-weight: 500;">{{ sub.customer.company_name|default:sub.customer.get_full_name|default:sub.customer.email }}</div>
+            <div class="text-muted" style="font-size: 12px;">{{ sub.customer.email }}</div>
+          </td>
+          <td>
+            <div>{{ sub.plan.name }}</div>
+            <div class="text-muted" style="font-size: 12px;">{{ sub.plan.get_billing_period_display }}</div>
+          </td>
+          <td class="text-right" style="font-weight: 600;">
+            ${{ sub.recurring_total|floatformat:2 }}
+          </td>
+          <td class="text-right text-muted" style="font-size: 13px;">
+            ${{ sub.normalized_mrr|floatformat:2 }}/mo
+          </td>
+          <td>
+            {% include "components/status_badge.html" with status=sub.status %}
+          </td>
+          <td style="font-size: 13px;">{{ sub.expiry_date|date:"M d, Y" }}</td>
+          <td class="text-right">
+            <a href="{% url 'billing:subscription-detail' sub.id %}" class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 4px 10px;">
+              Manage
+            </a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <p>No subscriptions or quotations found matching your filters.</p>
+              <a href="{% url 'billing:subscription-create' %}" class="btn btn-primary btn-sm">Create New Subscription</a>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "components/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

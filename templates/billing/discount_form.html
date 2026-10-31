@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Discount{% else %}New Discount{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div>
+    <h1 class="page-title">{% if object %}Edit Discount Rule{% else %}Create Promo Discount{% endif %}</h1>
+    <div class="page-subtitle">Configure promo code, dollar or percentage value, auto-expiry, and qualification rules</div>
+  </div>
+  <a href="{% url 'billing:discount-tax-list' %}" class="btn btn-secondary">Back to Rules</a>
+</div>
+
+<div class="form-card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="row">
+      <div class="col-md-5 form-group">
+        <label for="id_code" class="form-label">Promo Code <span style="color: #DC2626;">*</span></label>
+        {{ form.code }}
+        {% if form.code.errors %}
+          <div class="form-error">{{ form.code.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-7 form-group">
+        <label for="id_name" class="form-label">Campaign Name <span style="color: #DC2626;">*</span></label>
+        {{ form.name }}
+        {% if form.name.errors %}
+          <div class="form-error">{{ form.name.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 form-group">
+        <label for="id_discount_type" class="form-label">Discount Type <span style="color: #DC2626;">*</span></label>
+        {{ form.discount_type }}
+      </div>
+      <div class="col-md-6 form-group">
+        <label for="id_value" class="form-label">Value (% or $) <span style="color: #DC2626;">*</span></label>
+        {{ form.value }}
+        {% if form.value.errors %}
+          <div class="form-error">{{ form.value.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 form-group">
+        <label for="id_target_scope" class="form-label">Scope Target <span style="color: #DC2626;">*</span></label>
+        {{ form.target_scope }}
+      </div>
+      <div class="col-md-6 form-group">
+        <label for="id_product" class="form-label">Product (if Product-specific)</label>
+        {{ form.product }}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 form-group">
+        <label for="id_min_purchase" class="form-label">Min Spend Threshold ($)</label>
+        {{ form.min_purchase }}
+      </div>
+      <div class="col-md-6 form-group">
+        <label for="id_min_quantity" class="form-label">Min Seat Quantity</label>
+        {{ form.min_quantity }}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 form-group">
+        <label for="id_start_date" class="form-label">Start Date <span style="color: #DC2626;">*</span></label>
+        {{ form.start_date }}
+      </div>
+      <div class="col-md-4 form-group">
+        <label for="id_end_date" class="form-label">Auto-Expiry Date</label>
+        {{ form.end_date }}
+      </div>
+      <div class="col-md-4 form-group">
+        <label for="id_max_uses" class="form-label">Max Uses Limit</label>
+        {{ form.max_uses }}
+      </div>
+    </div>
+
+    <div class="form-check mb-4">
+      {{ form.is_active }}
+      <label for="id_is_active" class="form-check-label ms-1" style="font-size: 14px;">Active for Quotations and Invoicing</label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Discount Rule</button>
+      <a href="{% url 'billing:discount-tax-list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription {{ subscription.subscription_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+  <div class="d-flex align-items-center gap-3">
+    <h1 class="page-title">{{ subscription.subscription_number }}</h1>
+    {% include "components/status_badge.html" with status=subscription.status %}
+  </div>
+
+  {# State Transition Action Buttons #}
+  <div class="d-flex align-items-center gap-2">
+    {% for trans in available_transitions %}
+      <form action="{% url 'billing:subscription-transition' subscription.id %}" method="post" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="target_status" value="{{ trans.status }}">
+        <button type="submit" class="btn {{ trans.css_class }}">
+          {% if trans.status == 'quotation' %}
+            <i class="bi bi-file-earmark-text me-1"></i> Send Quote
+          {% elif trans.status == 'confirmed' %}
+            <i class="bi bi-check2-all me-1"></i> Confirm Order
+          {% elif trans.status == 'active' %}
+            <i class="bi bi-play-circle me-1"></i> Activate
+          {% elif trans.status == 'paused' %}
+            <i class="bi bi-pause-circle me-1"></i> Pause
+          {% elif trans.status == 'closed' %}
+            <i class="bi bi-x-circle me-1"></i> Close
+          {% else %}
+            Move to {{ trans.label }}
+          {% endif %}
+        </button>
+      </form>
+    {% endfor %}
+    <a href="{% url 'billing:subscription-list' %}" class="btn btn-secondary">Back to List</a>
+  </div>
+</div>
+
+{# Overview Metric Cards #}
+<div class="stat-grid mb-4">
+  <div class="stat-card">
+    <div class="stat-label">Recurring Total</div>
+    <div class="stat-value">${{ subscription.recurring_total|floatformat:2 }}</div>
+    <div class="stat-helper">Billed {{ subscription.plan.get_billing_period_display }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Monthly Revenue (MRR)</div>
+    <div class="stat-value">${{ subscription.normalized_mrr|floatformat:2 }}</div>
+    <div class="stat-helper">Normalized run-rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Next Billing Date</div>
+    <div class="stat-value" style="font-size: 20px; font-weight: 600;">{{ subscription.next_billing_date|date:"M d, Y" }}</div>
+    <div class="stat-helper">Term: {{ subscription.get_payment_terms_display }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Contract Expiry</div>
+    <div class="stat-value" style="font-size: 20px; font-weight: 600;">{{ subscription.expiry_date|date:"M d, Y" }}</div>
+    <div class="stat-helper">Plan: {{ subscription.plan.name }}</div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  {# Customer & Plan Info #}
+  <div class="col-lg-6">
+    <div class="card-surface h-100">
+      <h2 class="fs-6 fw-bold mb-3">Customer & Contract Specifications</h2>
+      <div class="row mb-2">
+        <div class="col-sm-4 text-muted" style="font-size: 13px;">Customer / Account</div>
+        <div class="col-sm-8 fw-semibold" style="font-size: 14px;">
+          {{ subscription.customer.company_name|default:subscription.customer.get_full_name|default:subscription.customer.email }}
+          <div class="text-muted fw-normal" style="font-size: 12px;">{{ subscription.customer.email }}</div>
+        </div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-sm-4 text-muted" style="font-size: 13px;">Phone / Address</div>
+        <div class="col-sm-8" style="font-size: 14px;">
+          {{ subscription.customer.phone|default:"—" }}
+          {% if subscription.customer.address %}
+            <div class="text-muted" style="font-size: 12px;">{{ subscription.customer.address }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-sm-4 text-muted" style="font-size: 13px;">Billing Cadence</div>
+        <div class="col-sm-8" style="font-size: 14px;">{{ subscription.plan.name }} (${{ subscription.plan.price }} / {{ subscription.plan.get_billing_period_display }})</div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-sm-4 text-muted" style="font-size: 13px;">Payment Terms</div>
+        <div class="col-sm-8" style="font-size: 14px;">{{ subscription.get_payment_terms_display }}</div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-sm-4 text-muted" style="font-size: 13px;">Promo Discount</div>
+        <div class="col-sm-8" style="font-size: 14px;">
+          {% if subscription.discount %}
+            <span class="badge-status badge-green">{{ subscription.discount.code }} ({{ subscription.discount.name }})</span>
+          {% else %}
+            <span class="text-muted">None applied</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if subscription.notes %}
+        <div class="row mt-2 pt-2 border-top">
+          <div class="col-sm-4 text-muted" style="font-size: 13px;">Internal Notes</div>
+          <div class="col-sm-8" style="font-size: 13px;">{{ subscription.notes }}</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Lifecycle Policy Info #}
+  <div class="col-lg-6">
+    <div class="card-surface h-100">
+      <h2 class="fs-6 fw-bold mb-3">Plan Lifecycle Policy Enforcement</h2>
+      <div class="d-flex flex-column gap-2 mb-3">
+        <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background: #F9FAFB;">
+          <span style="font-size: 13px;">Auto-Close on Expiration</span>
+          {% if subscription.plan.auto_close %}
+            <span class="badge-status badge-red">Enabled</span>
+          {% else %}
+            <span class="badge-status badge-gray">Manual review</span>
+          {% endif %}
+        </div>
+        <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background: #F9FAFB;">
+          <span style="font-size: 13px;">Early Closure Allowed</span>
+          {% if subscription.plan.closable %}
+            <span class="badge-status badge-green">Yes</span>
+          {% else %}
+            <span class="badge-status badge-red">Locked until expiry</span>
+          {% endif %}
+        </div>
+        <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background: #F9FAFB;">
+          <span style="font-size: 13px;">Customer/Staff Pause Allowed</span>
+          {% if subscription.plan.pausable %}
+            <span class="badge-status badge-amber">Pausable</span>
+          {% else %}
+            <span class="badge-status badge-gray">No pause</span>
+          {% endif %}
+        </div>
+        <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background: #F9FAFB;">
+          <span style="font-size: 13px;">Renewal Permitted</span>
+          {% if subscription.plan.renewable %}
+            <span class="badge-status badge-green">Renewable</span>
+          {% else %}
+            <span class="badge-status badge-gray">One-time term</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Product Lines Table #}
+<div class="card-surface mb-4">
+  <h2 class="fs-6 fw-bold mb-3">Subscription Product Lines</h2>
+  <div class="table-container mb-3">
+    <table class="table-minimal">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Variant Dimension</th>
+          <th class="text-right">Quantity</th>
+          <th class="text-right">Unit Price</th>
+          <th>Tax Rate</th>
+          <th class="text-right">Line Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in subscription.lines.all %}
+          <tr>
+            <td>
+              <div style="font-weight: 600;">{{ line.product.name }}</div>
+              <div class="text-muted" style="font-size: 12px;">{{ line.product.get_product_type_display }}</div>
+            </td>
+            <td>
+              {% if line.variant %}
+                <span class="badge-status badge-amber">{{ line.variant.attribute }}: {{ line.variant.value }} (+${{ line.variant.extra_price|floatformat:0 }})</span>
+              {% else %}
+                <span class="text-muted" style="font-size: 13px;">Standard</span>
+              {% endif %}
+            </td>
+            <td class="text-right">{{ line.quantity }}</td>
+            <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
+            <td>
+              {% if line.tax %}
+                <span class="badge-status badge-gray">{{ line.tax.name }} ({{ line.tax.rate }}%)</span>
+              {% else %}
+                <span class="text-muted" style="font-size: 13px;">0%</span>
+              {% endif %}
+            </td>
+            <td class="text-right" style="font-weight: 600;">
+              ${{ line.line_total|floatformat:2 }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">No line items in this subscription.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Financial Summary Breakdown #}
+  <div class="d-flex justify-content-end">
+    <div style="width: 320px;">
+      <div class="d-flex justify-content-between py-1" style="font-size: 14px;">
+        <span class="text-muted">Lines Subtotal:</span>
+        <span>${{ subscription.subtotal|floatformat:2 }}</span>
+      </div>
+      {% if subscription.discount_amount > 0 %}
+        <div class="d-flex justify-content-between py-1 text-success" style="font-size: 14px;">
+          <span>Discount ({{ subscription.discount.code }}):</span>
+          <span>-${{ subscription.discount_amount|floatformat:2 }}</span>
+        </div>
+      {% endif %}
+      <div class="d-flex justify-content-between py-1" style="font-size: 14px;">
+        <span class="text-muted">Taxes Calculated:</span>
+        <span>+${{ subscription.tax_total|floatformat:2 }}</span>
+      </div>
+      <div class="d-flex justify-content-between py-2 border-top mt-2" style="font-size: 16px; font-weight: 600;">
+        <span>Total Recurring Charge:</span>
+        <span style="color: var(--accent-primary);">${{ subscription.recurring_total|floatformat:2 }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Audit Trail History #}
+<div class="card-surface">
+  <h2 class="fs-6 fw-bold mb-3">Subscription Lifecycle Audit Trail</h2>
+  <div class="table-container">
+    <table class="table-minimal">
+      <thead>
+        <tr>
+          <th>Date & Time</th>
+          <th>Transition</th>
+          <th>Actor / User</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in audit_logs %}
+          <tr>
+            <td style="font-size: 13px;">{{ log.timestamp|date:"M d, Y H:i" }}</td>
+            <td>
+              <span class="badge-status badge-gray">{{ log.from_status|title }}</span>
+              &rarr;
+              <span class="badge-status badge-amber">{{ log.to_status|title }}</span>
+            </td>
+            <td style="font-size: 13px;">{{ log.changed_by.email|default:"System" }}</td>
+            <td class="text-muted" style="font-size: 13px;">{{ log.notes|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="4" class="text-center py-3 text-muted">No state changes recorded yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
